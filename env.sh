@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+find '/root/wholeChina/UI/admin/js' -name '*.js' -exec sed -i -e "s#window.baseURL=".*",d.a.defaults.baseURL#window.baseURL=\"$ADMIN_IP\",d.a.defaults.baseURL#g" {} \; && find '/root/wholeChina/UI/client/js' -name '*.js' -exec sed -i -e "s#baseURL=".*",d.a.interceptors.request#baseURL=\"$CLIENT_IP\",d.a.interceptors.request#g" {} \;
