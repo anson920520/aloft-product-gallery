@@ -135,6 +135,14 @@ class UserInfo(db.Model):
     update_at = Column(DATETIME, nullable=True)
     delete_at = Column(DATETIME, nullable=True)
 
+    def to_dict(self):
+        column_name_list = [
+            value[0] for value in self._sa_instance_state.attrs.items()
+        ]
+        return dict(
+            (column_name, getattr(self, column_name, None)) \
+            for column_name in column_name_list
+        )
 
 class Orders(db.Model):
     __tablename__ = "order"
@@ -150,6 +158,15 @@ class Orders(db.Model):
     delete_at = Column(DATETIME, nullable=True)
 
 
+    def to_dict(self):
+        column_name_list = [
+            value[0] for value in self._sa_instance_state.attrs.items()
+        ]
+        return dict(
+            (column_name, getattr(self, column_name, None)) \
+            for column_name in column_name_list
+        )
+
 class OrderDetail(db.Model):
     __tablename__ = "order_detail"
     id = Column(INTEGER, primary_key=True, autoincrement=True)
@@ -160,6 +177,15 @@ class OrderDetail(db.Model):
     product_number = Column(INTEGER)
     product_id = Column(INTEGER)
     total = Column(FLOAT)
+
+    def to_dict(self):
+        column_name_list = [
+            value[0] for value in self._sa_instance_state.attrs.items()
+        ]
+        return dict(
+            (column_name, getattr(self, column_name, None)) \
+            for column_name in column_name_list
+        )
 
 
 if __name__ == '__main__':

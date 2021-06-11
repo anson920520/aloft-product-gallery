@@ -36,7 +36,7 @@ def user():
         page = request.args.get("page", 1)
         search = request.args.get("search")  # 模糊查找
         if search:
-            user_obj = UserInfo.query.filter(UserInfo.username.like("%"+search+"%")).filter_by(delete_at=None).order_by(UserInfo.create_time.desc()).limit(int(offset)).offset((int(page)-1)*int(offset)).all()
+            user_obj = UserInfo.query.filter(UserInfo.username.like("%"+search+"%")).filter_by(delete_at=None).order_by(UserInfo.create_at.desc()).limit(int(offset)).offset((int(page)-1)*int(offset)).all()
             user_list = loads(user_obj)
             ret = {"code": 200, "data":{"user_list": user_list}}
         else:
@@ -45,8 +45,10 @@ def user():
                 user_list = loads(user_obj)
                 ret = {"code": 200, "data": {"user_list": user_list}}
             else:
-                user_obj = UserInfo.query.filter_by(delete_at=None).order_by(UserInfo.create_time.desc()).limit(int(offset)).offset((int(page)-1)*int(offset)).all()
+                user_obj = UserInfo.query.filter_by(delete_at=None).order_by(UserInfo.delete_at.desc()).limit(int(offset)).offset((int(page)-1)*int(offset)).all()
+                print(user_obj, '------')
                 user_list = loads(user_obj)
+                print(user_list)
                 ret = {"code": 200, "data": {"user_list": user_list}}
         return jsonify(ret)
     elif method == "PUT":
