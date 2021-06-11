@@ -36,16 +36,16 @@ def user():
         page = request.args.get("page", 1)
         search = request.args.get("search")  # 模糊查找
         if search:
-            user_obj = UserInfo.query.filter(UserInfo.username.like("%"+search+"%")).filter_by(delete_time=None).order_by(UserInfo.create_time.desc()).limit(int(offset)).offset((int(page)-1)*int(offset)).all()
+            user_obj = UserInfo.query.filter(UserInfo.username.like("%"+search+"%")).filter_by(delete_at=None).order_by(UserInfo.create_time.desc()).limit(int(offset)).offset((int(page)-1)*int(offset)).all()
             user_list = loads(user_obj)
             ret = {"code": 200, "data":{"user_list": user_list}}
         else:
             if uid:
-                user_obj = UserInfo.query.filter_by(uuid=uid, delete_time=None).first()
+                user_obj = UserInfo.query.filter_by(uuid=uid, delete_at=None).first()
                 user_list = loads(user_obj)
                 ret = {"code": 200, "data": {"user_list": user_list}}
             else:
-                user_obj = UserInfo.query.filter_by(delete_time=None).order_by(UserInfo.create_time.desc()).limit(int(offset)).offset((int(page)-1)*int(offset)).all()
+                user_obj = UserInfo.query.filter_by(delete_at=None).order_by(UserInfo.create_time.desc()).limit(int(offset)).offset((int(page)-1)*int(offset)).all()
                 user_list = loads(user_obj)
                 ret = {"code": 200, "data": {"user_list": user_list}}
         return jsonify(ret)
@@ -61,7 +61,7 @@ def user():
         user_obj.password = password # hash_password(password)
         user_obj.email = email
         user_obj.phone = phone
-        user_obj.update_time = datetime.datetime.now()
+        user_obj.update_at = datetime.datetime.now()
         db.session.commit()
         ret = {"code": 200, "data": {"msg": "更改成功"}}
         return jsonify(ret)
@@ -77,7 +77,7 @@ def user():
 
         str_uuid = uuid.uuid4().hex
         user_obj = UserInfo(uuid=str_uuid, username=username, password=hash_password(password), email=email, phone=phone,
-                            create_time=datetime.datetime.now())
+                            create_at=datetime.datetime.now())
         db.session.add(user_obj)
         db.session.commit()
         ret = {"code": 200, "data": {"msg": "增加成功"}}
@@ -87,7 +87,7 @@ def user():
         data = request.json
         uid = data.get("uuid")
         user_obj = UserInfo.query.filter_by(uuid=uid).first()
-        user_obj.delete_time = datetime.datetime.now()
+        user_obj.delete_at = datetime.datetime.now()
         db.session.commit()
         ret = {"code": 200, "data": {"msg": "更改成功"}}
         return jsonify(ret)
