@@ -5,6 +5,7 @@ import os
 conf = configparser.ConfigParser()
 curpath = os.path.dirname(os.path.realpath(__file__))
 cfgpath = os.path.join(curpath, 'config.ini')
+# cfgpath = os.path.join(curpath, 'config-dev.ini')
 
 conf.read(cfgpath, encoding='utf-8')
 sections = conf.sections()
