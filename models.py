@@ -22,6 +22,7 @@ class Brand(db.Model):
     name_en = Column(String(255))
     name_cn = Column(String(255))
     detail = Column(TEXT)
+    count = Column(Integer)
     create_at = Column(DATETIME, nullable=True)
     update_at = Column(DATETIME, nullable=True)
     delete_at = Column(DATETIME, nullable=True)
@@ -109,6 +110,7 @@ class Watches(db.Model):
     annex = Column(TEXT)
     clasp_type = Column(String(255))
     price = Column(FLOAT(11))
+    store = Column(INTEGER, default=100)
     create_at = Column(DATETIME, nullable=True)
     update_at = Column(DATETIME, nullable=True)
     delete_at = Column(DATETIME, nullable=True)
@@ -127,10 +129,14 @@ class UserInfo(db.Model):
     __tablename__ = "user_info"
     id = Column(INTEGER, primary_key=True, autoincrement=True)
     uuid = Column(String(255))
-    username = Column(String(255))
+    first_name = Column(String(255))
+    last_name = Column(String(255))
+    username = Column(String(255), unique=True)
     password = Column(String(255))
     email = Column(String(255))
     phone = Column(String(255))
+    birthday = Column(String(255))
+    country = Column(String(255))
     create_at = Column(DATETIME, nullable=True)
     update_at = Column(DATETIME, nullable=True)
     delete_at = Column(DATETIME, nullable=True)
@@ -143,20 +149,23 @@ class UserInfo(db.Model):
             (column_name, getattr(self, column_name, None)) \
             for column_name in column_name_list
         )
+
 
 class Orders(db.Model):
     __tablename__ = "order"
     id = Column(INTEGER, primary_key=True, autoincrement=True)
-    uuid = Column(String(255))
+    uuid = Column(String(255), index=True)
     order_num = Column(String(255))
-    order_detail = Column(JSON)
-    total = Column(INTEGER)
+    # order_detail = Column(JSON)
+    total = Column(FLOAT)
+    handsel = Column(FLOAT)
     pay_methods = Column(String(255))
+    status = Column(INTEGER, default=0)  # 0:未支付 1：已支付定金 2：已取消
     user_id = Column(INTEGER)
+    address_id = Column(INTEGER)
     create_at = Column(DATETIME, nullable=True)
     update_at = Column(DATETIME, nullable=True)
     delete_at = Column(DATETIME, nullable=True)
-
 
     def to_dict(self):
         column_name_list = [
@@ -166,6 +175,7 @@ class Orders(db.Model):
             (column_name, getattr(self, column_name, None)) \
             for column_name in column_name_list
         )
+
 
 class OrderDetail(db.Model):
     __tablename__ = "order_detail"
@@ -186,6 +196,90 @@ class OrderDetail(db.Model):
             (column_name, getattr(self, column_name, None)) \
             for column_name in column_name_list
         )
+
+
+class ShoppingCar(db.Model):
+    __tablename__ = "shopping_car"
+    id = Column(INTEGER, autoincrement=True, primary_key=True)
+    user_id = Column(INTEGER)
+    water_id = Column(INTEGER)
+    count = Column(INTEGER)
+    create_at = Column(DATETIME, nullable=True)
+    update_at = Column(DATETIME, nullable=True)
+    delete_at = Column(DATETIME, nullable=True)
+
+    def to_dict(self):
+        column_name_list = [
+            value[0] for value in self._sa_instance_state.attrs.items()
+        ]
+        return dict(
+            (column_name, getattr(self, column_name, None)) \
+            for column_name in column_name_list
+        )
+
+
+class Favorite(db.Model):
+    __tablename__ = "favorite"
+    id = Column(INTEGER, autoincrement=True, primary_key=True)
+    user_id = Column(INTEGER)
+    water_id = Column(INTEGER)
+    create_at = Column(DATETIME, nullable=True)
+    update_at = Column(DATETIME, nullable=True)
+    delete_at = Column(DATETIME, nullable=True)
+
+    def to_dict(self):
+        column_name_list = [
+            value[0] for value in self._sa_instance_state.attrs.items()
+        ]
+        return dict(
+            (column_name, getattr(self, column_name, None)) \
+            for column_name in column_name_list
+        )
+
+
+class Address(db.Model):
+    __tablename__ = "address"
+    id = Column(INTEGER, primary_key=True, autoincrement=True)
+    user_id = Column(INTEGER)
+    first_name = Column(String(255))
+    last_name = Column(String(255))
+    appellation = Column(String(255))
+    area = Column(String(255))
+    city = Column(String(255))
+    district = Column(String(255))
+    place = Column(String(255))
+    mobile = Column(String(255))
+    is_delete = Column(INTEGER, default=1)
+
+    def to_dict(self):
+        column_name_list = [
+            value[0] for value in self._sa_instance_state.attrs.items()
+        ]
+        return dict(
+            (column_name, getattr(self, column_name, None)) \
+            for column_name in column_name_list
+        )
+
+
+class Admin(db.Model):
+    __tablename__ = "admin"
+    username = Column(String(255))
+    password = Column(String(255))
+    role = Column(INTEGER)
+
+    def to_dict(self):
+        column_name_list = [
+            value[0] for value in self._sa_instance_state.attrs.items()
+        ]
+        return dict(
+            (column_name, getattr(self, column_name, None)) \
+            for column_name in column_name_list
+        )
+
+
+class Role(db.Model):
+    id = Column(INTEGER, primary_key=True, autoincrement=True)
+    role = Column(String(255))
 
 
 if __name__ == '__main__':

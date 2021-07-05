@@ -4,12 +4,14 @@ import time
 
 import requests
 from flask import Blueprint, request, jsonify, make_response, Response
-from utils import generate_auth_token, check_login, hash_password, loads, create_excel, sender_email
-from setting import IMG_SIZE, BASE_URL, IMG_PATH, PDF_PATH, FILE, merchantID, publicKey, privateKey, API_KEY, PUB_KEY
+from utils import generate_auth_token, check_login, hash_password, loads, create_excel, sender_email, \
+    generate_admin_auth_token
+from setting import rate, IMG_SIZE, ADMIN_TIMEOUT, CLIENT_TIMEOUT,  IMG_PATH, PDF_PATH, FILE, merchantID, publicKey, privateKey, API_KEY, PUB_KEY
 import uuid
 import datetime
-from models import db, Brand, Images, Category, Watches, UserInfo, Orders, OrderDetail
-from sqlalchemy import text, extract, or_
+from models import db, Brand, Images, Category, Watches, UserInfo, Orders, OrderDetail, Address, Favorite, ShoppingCar, \
+    Admin
+from sqlalchemy import text, extract, or_, func
 from pay.pay import third_pay, client_token
 from pay.stripe_pay import create_purchase
 
@@ -17,15 +19,53 @@ from pay.stripe_pay import create_purchase
 admin_api = Blueprint('admin', __name__)
 
 
+# client登錄
 @admin_api.route("/signin", methods=["POST"])
 def login():
+    """
+    客户端登录
+    :return:
+    """
     username = request.json.get("username")
     password = request.json.get("password")
     if not all([username, password]):
         return jsonify({"code": 1002, "data": {"msg": "缺少參數"}})
-    pass
+    is_user = UserInfo.query.filter_by(username=username, delete_at=None).first()
+    if not is_user:
+        return jsonify({"code": 2004, "data": {"msg": "用戶不存在"}})
+    if is_user.password != hash_password(password):
+        return jsonify({"code": 2005, "data": {"msg": "密碼錯誤"}})
+    user_msg = {"name": username, "password": is_user.password}
+    token = generate_auth_token(json.dumps(user_msg, ensure_ascii=False))
+    user_data = is_user.to_dict()
+    user_data["token"] = token
+    return jsonify({"code": 200, "data": user_data})
 
 
+# admin登錄
+@admin_api.route("/admin/signin", methods=["POST"])
+def admin_login():
+    """
+    客户端登录
+    :return:
+    """
+    username = request.json.get("username")
+    password = request.json.get("password")
+    if not all([username, password]):
+        return jsonify({"code": 1002, "data": {"msg": "缺少參數"}})
+    is_user = Admin.query.filter_by(username=username, delete_at=None).first()
+    if not is_user:
+        return jsonify({"code": 2004, "data": {"msg": "用戶不存在"}})
+    if is_user.password != hash_password(password):
+        return jsonify({"code": 2005, "data": {"msg": "密碼錯誤"}})
+    user_msg = {"name": username, "password": is_user.password, "role": is_user.role}
+    token = generate_admin_auth_token(json.dumps(user_msg, ensure_ascii=False))
+    user_data = is_user.to_dict()
+    user_data["token"] = token
+    return jsonify({"code": 200, "data": user_data})
+
+
+# 用戶信息
 @admin_api.route("/user", methods=["GET", "POST", "PUT", "DELETE"])
 # @check_login
 def user():
@@ -54,15 +94,21 @@ def user():
     elif method == "PUT":
         data = request.json
         uid = data.get("uuid")
-        username = data.get("username")
         password = data.get("password", "123456")
         email = data.get("email")
         phone = data.get("phone")
+        first_name = data.get("first_name")
+        last_name = data.get("last_name")
+        birthday = data.get("birthday")
+        country = data.get("country")
         user_obj = UserInfo.query.filter_by(uuid=uid).first()
-        user_obj.username = username
-        user_obj.password = password # hash_password(password)
+        user_obj.password = hash_password(password)
         user_obj.email = email
         user_obj.phone = phone
+        user_obj.first_name = first_name
+        user_obj.last_name = last_name
+        user_obj.birthday = birthday
+        user_obj.country = country
         user_obj.update_at = datetime.datetime.now()
         db.session.commit()
         ret = {"code": 200, "data": {"msg": "更改成功"}}
@@ -73,13 +119,20 @@ def user():
         password = data.get("password", "123456")
         email = data.get("email")
         phone = data.get("phone")
+        first_name = data.get("first_name")
+        last_name = data.get("last_name")
+        birthday = data.get("birthday")
+        country = data.get("country")
         if not all([username, phone, email]):
             ret = {"code": 1002, "data": {"msg": "缺少必傳參數"}}
             return jsonify(ret)
-
+        is_obj = UserInfo.query.filter_by(username=username, delete_at=None).first()
+        if is_obj:
+            ret = {"code": 1004, "data": {"msg": "此用户已存在"}}
+            return jsonify(ret)
         str_uuid = uuid.uuid4().hex
         user_obj = UserInfo(uuid=str_uuid, username=username, password=hash_password(password), email=email, phone=phone,
-                            create_at=datetime.datetime.now())
+                            first_name=first_name, last_name=last_name, birthday=birthday, country=country, create_at=datetime.datetime.now())
         db.session.add(user_obj)
         db.session.commit()
         ret = {"code": 200, "data": {"msg": "增加成功"}}
@@ -95,6 +148,191 @@ def user():
         return jsonify(ret)
 
 
+# 地址
+@admin_api.route("/address", methods=["GET", "POST", "PUT", "DELETE"])
+# @check_login
+def address():
+    method = request.method
+    if method == "GET":
+        user_id = request.args.get("user_id")
+        page = request.args.get("page", 1)
+        offset = request.args.get("offset", 5)
+        id = request.args.get("id")
+        if user_id:
+            addr_obj = Address.query.filter_by(id=user_id, delete_at=0).order_by(Address.id.desc()).limit(
+                int(offset)).offset((int(page) - 1) * int(offset)).all()
+            addr_list = loads(addr_obj)
+            print(addr_list)
+            ret = {"code": 200, "data": {"address_list": addr_list}}
+            return jsonify(ret)
+
+        if id:
+            addr_obj = Address.query.filter_by(id=id, delete_at=0).first()
+            if addr_obj:
+                addr_list = addr_obj.to_dict()
+                print(addr_list)
+            else:
+                addr_list = {}
+            ret = {"code": 200, "data": addr_list}
+            return jsonify(ret)
+        else:
+            return jsonify({"code": 4005, "data": {"msg": "缺少參數"}})
+    elif method == "PUT":
+        data = request.json
+        uid = data.get("id")
+        first_name = data.get("first_name", "123456")
+        last_name = data.get("last_name")
+        appellation = data.get("appellation")
+        area = data.get("area")
+        city = data.get("city")
+        district = data.get("district")
+        place = data.get("place")
+        mobile = data.get("mobile")
+        user_obj = Address.query.filter_by(id=uid).first()
+        user_obj.appellation = appellation
+        user_obj.area = area
+        user_obj.city = city
+        user_obj.first_name = first_name
+        user_obj.last_name = last_name
+        user_obj.district = district
+        user_obj.place = place
+        user_obj.mobile = mobile
+        db.session.commit()
+        ret = {"code": 200, "data": {"msg": "更改成功"}}
+        return jsonify(ret)
+    elif method == "POST":
+        data = request.json
+        first_name = data.get("first_name", "123456")
+        last_name = data.get("last_name")
+        appellation = data.get("appellation")
+        area = data.get("area")
+        city = data.get("city")
+        district = data.get("district")
+        place = data.get("place")
+        mobile = data.get("mobile")
+        if not all([mobile, first_name, appellation, area, district]):
+            ret = {"code": 1002, "data": {"msg": "缺少必傳參數"}}
+            return jsonify(ret)
+        user_obj = Address(first_name=first_name, last_name=last_name, appellation=appellation, area=area,
+                            city=city, district=district, place=place, mobile=mobile)
+        db.session.add(user_obj)
+        db.session.commit()
+        ret = {"code": 200, "data": {"msg": "增加成功"}}
+
+        return jsonify(ret)
+    else:
+        data = request.json
+        uid = data.get("id")
+        user_obj = Address.query.filter_by(id=uid).first()
+        user_obj.delete_at = 1
+        db.session.commit()
+        ret = {"code": 200, "data": {"msg": "更改成功"}}
+        return jsonify(ret)
+
+
+# 最喜歡
+@admin_api.route("/favorite", methods=["GET", "POST", "DELETE"])
+# @check_login
+def favorite():
+    method = request.method
+    if method == "GET":
+        user_id = request.args.get("user_id")
+        page = request.args.get("page", 1)
+        offset = request.args.get("offset", 5)
+        if user_id:
+            favorite_obj = Favorite.query.filter_by(user_id=user_id, delete_at=None).order_by(Favorite.id.desc()).limit(
+                int(offset)).offset((int(page) - 1) * int(offset)).all()
+            favorite_list = loads(favorite_obj)
+            print(favorite_list)
+            ret = {"code": 200, "data": {"favorite_list": favorite_list}}
+            return jsonify(ret)
+        else:
+            return jsonify({"code": 4005, "data": {"msg": "缺少參數"}})
+    elif method == "POST":
+        data = request.json
+        user_id = data.get("user_id")
+        water_id = data.get("water_id")
+        if not all([water_id, user_id]):
+            ret = {"code": 1002, "data": {"msg": "缺少必傳參數"}}
+            return jsonify(ret)
+        user_obj = Favorite(user_id=user_id, water_id=water_id)
+        db.session.add(user_obj)
+        db.session.commit()
+        ret = {"code": 200, "data": {"msg": "增加成功"}}
+
+        return jsonify(ret)
+    else:
+        data = request.json
+        uid = data.get("id")
+        user_obj = Favorite.query.filter_by(id=uid).first()
+        user_obj.delete_at = datetime.datetime.now()
+        db.session.commit()
+        ret = {"code": 200, "data": {"msg": "更改成功"}}
+        return jsonify(ret)
+
+
+# 購物車
+@admin_api.route("/shoppingCar", methods=["GET", "POST", "PUT", "DELETE"])
+# @check_login
+def shopping_car():
+    method = request.method
+    if method == "GET":
+        user_id = request.args.get("user_id")
+        page = request.args.get("page", 1)
+        offset = request.args.get("offset", 5)
+        id = request.args.get("id")
+        if user_id:
+            addr_obj = ShoppingCar.query.filter_by(user_id=user_id, delete_at=None).order_by(ShoppingCar.id.desc()).limit(
+                int(offset)).offset((int(page) - 1) * int(offset)).all()
+            addr_list = loads(addr_obj)
+            print(addr_list)
+            ret = {"code": 200, "data": {"car_list": addr_list}}
+            return jsonify(ret)
+        if id:
+            addr_obj = ShoppingCar.query.filter_by(id=id, delete_at=None).first()
+            if addr_obj:
+                addr_list = addr_obj.to_dict()
+                print(addr_list)
+            else:
+                addr_list = {}
+            ret = {"code": 200, "data": addr_list}
+            return jsonify(ret)
+        else:
+            return jsonify({"code": 4005, "data": {"msg": "缺少參數"}})
+    elif method == "PUT":
+        data = request.json
+        uid = data.get("id")
+        count = data.get("count")
+        user_obj = ShoppingCar.query.filter_by(id=uid).first()
+        user_obj.count = count
+        db.session.commit()
+        ret = {"code": 200, "data": {"msg": "更改成功"}}
+        return jsonify(ret)
+    elif method == "POST":
+        data = request.json
+        user_id = data.get("user_id")
+        water_id = data.get("water_id")
+        count = data.get("count", 1)
+        if not all([user_id, water_id, count]):
+            ret = {"code": 1002, "data": {"msg": "缺少必傳參數"}}
+            return jsonify(ret)
+        user_obj = ShoppingCar(user_id=user_id, water_id=water_id, count=count)
+        db.session.add(user_obj)
+        db.session.commit()
+        ret = {"code": 200, "data": {"msg": "增加成功"}}
+
+        return jsonify(ret)
+    else:
+        data = request.json
+        uid = data.get("id")
+        user_obj = ShoppingCar.query.filter_by(id=uid).first()
+        user_obj.delete_at = datetime.datetime.now()
+        db.session.commit()
+        ret = {"code": 200, "data": {"msg": "刪除成功"}}
+        return jsonify(ret)
+
+
+# 品牌
 @admin_api.route("/brand", methods=["GET", "POST", "PUT", "DELETE"])
 # @check_login
 def brand():
@@ -166,6 +404,7 @@ def brand():
         return jsonify(ret)
 
 
+# 分類
 @admin_api.route("/category", methods=["GET", "POST", "PUT", "DELETE"])
 # @check_login
 def category():
@@ -237,6 +476,7 @@ def category():
         return jsonify(ret)
 
 
+# 產品
 @admin_api.route("/watch", methods=["GET", "POST", "PUT", "DELETE"])
 # @check_login
 def watch():
@@ -293,7 +533,15 @@ def watch():
                     data_dict["brand"] = waters_list[1].to_dict()
                     # category = Category.query.filter_by(uuid=data_dict["category_uuid"]).first()
                     data_dict["category"] = waters_list[2].to_dict()
-                    ret = {"code": 200, "data": data_dict, "msg": "success"}
+                    # 隨機獲取5個
+                    relate_data = Watches.query.filter_by(brand_uuid=waters_list[1].uuid).order_by(func.rand()).limit(5)
+                    relate_list = []
+                    for item in relate_data:
+                        item_dict = item.to_dict()
+                        images = Images.query.filter_by(watches_uuid=item_dict["uuid"]).all()
+                        item_dict["images"] = loads(images)
+                        relate_list.append(item_dict)
+                    ret = {"code": 200, "data": data_dict, "relate_data": relate_list, "msg": "success"}
                 else:
                     ret = {"code": 200, "data": [], "msg": "无此商品"}
             elif data.get("brand_uuid"):
@@ -403,7 +651,7 @@ def watch():
             ret = {"code": 1002, "data": {}, "msg": "刪除失敗"}
         return jsonify(ret)
 
-
+# 上傳圖片
 @admin_api.route("/image", methods=["GET", "POST", "PUT", "DELETE"])
 # @check_login
 def upload():
@@ -505,12 +753,12 @@ def get_pay_token():
     else:
         return jsonify({"code": "200", "token": client_token, "message": "success"})
 
-
+# 支付
 @admin_api.route("/pay", methods=["POST"])
 # @check_login
 def pay():
     """
-    上傳圖片
+    支付
     :return:
     """
     data_json = request.json
@@ -519,6 +767,7 @@ def pay():
     token = data_json.get("token")
     product_list = data_json.get("product")  # 數組 [[1, 2]]
     user_id = data_json.get("user_id")
+    address = data_json.get("address_id")
     total = 0
     desc_list = ""
     data_msg = ""
@@ -527,6 +776,8 @@ def pay():
     for item in product_list:
         wat = Watches.query.filter(Watches.id==item[0]).first()
         images = Images.query.filter_by(watches_uuid=wat.uuid).all()
+        if wat.store < item[1]:
+            return jsonify({"code": 2001, "data": {"msg": wat.name+"庫產不足"}})
         product_detail_list.append({"product_name": wat.name, "product_image": loads(images), "product_price": wat.price, "product_number": item[1], "product_id": wat.id, "total": wat.price * item[1]})
         desc_list += wat.name + "|"
         total += wat.price * item[1]
@@ -535,10 +786,9 @@ def pay():
     if is_pay == False:
         j = 0
         # 支付不成功 不下执行 重试5次
-
         while j < 5:
             if methods == "braintree":
-                result = third_pay(str(total), payment_method_nonce, data_msg)
+                result = third_pay(str(rate/100*total), payment_method_nonce, data_msg)
                 if result != True:
                     error_msg = result
                 else:
@@ -546,7 +796,7 @@ def pay():
                     break
             elif methods == "stripe":
                 print(total, data_msg, token, desc_list)
-                result = create_purchase(total,"hkd",data_msg,token,"".join(desc_list),  # 這個之後就是根據買什麼產品放產品名字 數量  放進去
+                result = create_purchase(rate/100*total,"hkd",data_msg,token,"".join(desc_list),  # 這個之後就是根據買什麼產品放產品名字 數量  放進去
                     # receipt_email ="abc@gmail.com [客戶電郵]",  #發送一個收條
                 )
                 if result != "succeeded":
@@ -566,19 +816,62 @@ def pay():
             return jsonify(result)
     order_num = "WAS"+str(int(time.time()))
     uid = uuid.uuid4().hex
-    order_obj = Orders(uuid=uid, order_num=order_num, total=total, pay_methods="pay", user_id=user_id, create_at=datetime.datetime.now())
+    # 建立訂單
+    order_obj = Orders(uuid=uid, order_num=order_num, handsel=rate/100*total, total=total, pay_methods=methods, status=1, user_id=user_id, address_id=address, create_at=datetime.datetime.now())
     orm_list = []
     orm_list.append(order_obj)
     for item in product_detail_list:
         print(item)
+        # 減庫存
+        wa_obj = Watches.query.filter_by(id=item["product_id"]).first()
+        wa_obj.store = wa_obj.store - item["product_number"]
+        orm_list.append(wa_obj)
+        # 增加詳情
         obj = OrderDetail(order_id=order_num, product_name=item["product_name"], product_image=json.dumps(item["product_image"]), product_price=item["product_price"], product_number=item["product_number"], total=item["total"], product_id=item["product_id"])
         orm_list.append(obj)
+        # 刪除購物車
+        car_obj = ShoppingCar.query.filter_by(user_id=user_id, water_id=item["product_id"]).first()
+        car_obj.delete_at = datetime.datetime.now()
+        orm_list.append(car_obj)
     db.session.add_all(orm_list)
     db.session.commit()
     db.session.close()
-    return {"code": 200, "msg": "支付成功"}
+    return {"code": 200, "data": {"order_num": order_num, "msg": "支付成功"}}
 
 
+# 普通用戶查看訂單
+@admin_api.route("/client/order", methods=["GET"])
+def client_order():
+    method = request.method
+    data = request.args
+    offset = data.get("offset", 20)
+    page = data.get("page", 1)
+    search = data.get("search")
+    user_id = data.get("user_id")
+    if search:
+        order_list = Orders.query.filter(Orders.user_id==user_id).filter(
+            or_(Orders.order_num.like("%" + search + "%"), Orders.name.like("%" + search + "%"))).filter_by(
+            delete_at=None).order_by(Orders.create_at.desc(), Orders.id.desc()).offset(
+            (int(page) - 1) * int(offset)).limit(int(offset)).all()
+        count = Orders.query.filter(Orders.user_id==user_id).filter_by(delete_at=None).count()
+        ret = {"code": 200, "data": loads(order_list), "count": count}
+    else:
+        if data.get("order_num"):
+            order_obj = Orders.query.filter(Orders.user_id==user_id).filter_by(delete_at=None, order_num=data.get("order_num")).first()
+            order_data = order_obj.to_dict()
+            order_detail = OrderDetail.query.filter_by(order_id=order_obj.order_num).all()
+            order_data["detail"] = loads(order_detail)
+            ret = {"code": 200, "data": order_data}
+        else:
+            order_list = Orders.query.filter(Orders.user_id==user_id).filter_by(delete_at=None).order_by(Orders.create_at.desc(),
+                                                                         Orders.id.desc()).offset(
+                (int(page) - 1) * int(offset)).limit(int(offset)).all()
+            count = Orders.query.filter(Orders.user_id==user_id).filter_by(delete_at=None).count()
+            ret = {"code": 200, "data": loads(order_list), "count": count}
+    return jsonify(ret)
+
+
+# 管理員查看訂單
 @admin_api.route("/order", methods=["GET", "POST", "PUT", "DELETE"])
 # @check_login
 def order():
@@ -587,7 +880,6 @@ def order():
     :return:
     """
     method = request.method
-    data = request.json
     if method == "GET":
         data = request.args
         offset = data.get("offset", 20)
@@ -609,5 +901,116 @@ def order():
                 count = Orders.query.filter_by(delete_at=None).count()
                 ret = {"code": 200, "data": loads(order_list), "count": count}
         return jsonify(ret)
+    elif method == "PUT":
+        # 取消訂單  返還數量
+        json_data = request.json
+        uid = json_data.get("uuid")
+        status = json_data.get("status")
+        orm_list = []
+        order_obj = Orders.query.filter_by(uuid=uid).first()
+        order_obj.status = status
+        orm_list.append(order_obj)
+        order_list = OrderDetail.query.filter_by(order_id=order_obj.order_num).all()
+        for item in order_list:
+            wat_obj = Watches.query.filter_by(id=item.product_id).first()
+            wat_obj.store = wat_obj.store + item.product_number
+            orm_list.append(wat_obj)
+        db.session.add_all(orm_list)
+        db.session.commit()
+        db.session.close()
+        return {"code": 200, "data": {"msg": "訂單取消成功"}}
+    elif method == "POST":
+        data_json = request.json
+        product_list = data_json.get("product")  # 數組 [[1, 2]]
+        user_id = data_json.get("user_id")
+        product_detail_list = []
+        total = 0
+        print(product_list)
+        for item in product_list:
+            wat = Watches.query.filter(Watches.id == item[0]).first()
+            images = Images.query.filter_by(watches_uuid=wat.uuid).all()
+            if wat.store < item[1]:
+                return jsonify({"code": 2001, "data": {"msg": wat.name + "庫產不足"}})
+            product_detail_list.append(
+                {"product_name": wat.name, "product_image": loads(images), "product_price": wat.price,
+                 "product_number": item[1], "product_id": wat.id, "total": wat.price * item[1]})
+            total +=  wat.price * item[1]
+        order_num = "WAS" + str(int(time.time()))
+        uid = uuid.uuid4().hex
+        # 建立訂單
+        order_obj = Orders(uuid=uid, order_num=order_num, handsel=rate / 100 * total, total=total, pay_methods="stripe",
+                           status=1, user_id=user_id, address_id=address, create_at=datetime.datetime.now())
+        orm_list = []
+        orm_list.append(order_obj)
+        for item in product_detail_list:
+            print(item)
+            # 減庫存
+            wa_obj = Watches.query.filter_by(id=item["product_id"]).first()
+            wa_obj.store = wa_obj.store - item["product_number"]
+            orm_list.append(wa_obj)
+            # 增加詳情
+            obj = OrderDetail(order_id=order_num, product_name=item["product_name"],
+                              product_image=json.dumps(item["product_image"]), product_price=item["product_price"],
+                              product_number=item["product_number"], total=item["total"], product_id=item["product_id"])
+            orm_list.append(obj)
+            # 刪除購物車
+            car_obj = ShoppingCar.query.filter_by(user_id=user_id, water_id=item["product_id"]).first()
+            car_obj.delete_at = datetime.datetime.now()
+            orm_list.append(car_obj)
+        db.session.add_all(orm_list)
+        db.session.commit()
+        db.session.close()
+        return {"code": 200, "data": {"order_num": order_num, "msg": "创建订单成功"}}
+    else:
+        # 取消訂單  返還數量
+        json_data = request.json
+        uid = json_data.get("uuid")
+        status = json_data.get("status")
+        orm_list = []
+        order_obj = Orders.query.filter_by(uuid=uid).first()
+        order_obj.delete_at = datetime.datetime.now()
+        db.session.commit()
+        db.session.close()
+        return {"code": 200, "data": {"msg": "訂單取消成功"}}
 
 
+
+# 管理端更新配置
+@admin_api.route("/setting", methods=["GET", "PUT"])
+# @check_login
+def order():
+    """
+    訂單
+    :return:
+    """
+    method = request.method
+    if method == "GET":
+        with open("data.json", "r") as f:
+            file = eval(f.read())
+        return jsonify({"code": 200, "data": file})
+    else:
+        global ADMIN_TIMEOUT
+        global CLIENT_TIMEOUT
+        global rate
+        # 取消訂單  返還數量
+        json_data = request.json
+        ADMIN_TIMEOUT = json_data.get("admin_timeout", 3)
+        CLIENT_TIMEOUT = json_data.get("client_timeout", 3)
+        rate = json_data.get("rate", 10)
+        content = {"admin_timeout": ADMIN_TIMEOUT, "client_timeout": CLIENT_TIMEOUT, "rate": rate}
+        with open("data.json", "w", encoding="utf-8") as f:
+            f.write(json.dumps(content, ensure_ascii=False))
+        return jsonify({"code": 200, "data": {"msg": "更改成功"}})
+
+
+# 統計數量
+@admin_api.route("/statistics/count", methods=["GET"])
+def statistics_count():
+    category_uuid = request.args.get("category_uuid")
+    brand_uuid = request.args.get("brand_uuid")
+    if category_uuid:
+        count = Watches.query.filter_by(category_uuid=category_uuid).count()
+        return jsonify({"code": 200, "count": count})
+    if brand_uuid:
+        count = Watches.query.filter_by(brand_uuid=brand_uuid).count()
+        return jsonify({"code": 200, "count": count})

@@ -1,10 +1,12 @@
 import base64
+import datetime
 import hashlib
 import io
 
+import jwt
 import xlsxwriter
 
-from setting import JWT_KEYS, TIMEOUT, SALT
+from setting import JWT_KEYS, ADMIN_TIMEOUT, CLIENT_TIMEOUT, SALT, ADMIN_JWT_KEYS
 from functools import wraps
 from flask import request, jsonify
 from pyDes import *
@@ -16,11 +18,10 @@ from email.header import Header
 import random
 import string
 
-
 ENCRY_UTIL = des(b"DESCRYPT", CBC, b"\0\0\0\0\0\0\0\0", pad=None, padmode=PAD_PKCS5)
 
-
-S_JMQ = Serializer(JWT_KEYS, expires_in=TIMEOUT)
+S_JMQ = Serializer(JWT_KEYS, expires_in=CLIENT_TIMEOUT)
+Admin_JMQ = Serializer(ADMIN_JWT_KEYS, expires_in=ADMIN_TIMEOUT)
 
 
 def generate_auth_token(data):
@@ -30,35 +31,73 @@ def generate_auth_token(data):
     return S_JMQ.dumps(key_data).decode("utf-8")
 
 
+def generate_admin_auth_token(data):
+    key_data = ENCRY_UTIL.encrypt(data)
+    key_data = base64.encodebytes(key_data)
+    key_data = str(key_data, encoding="utf-8")
+    return Admin_JMQ.dumps(key_data).decode("utf-8")
+
+
 def check_login(func):
     @wraps(func)
     def is_login(*args, **kwargs):
         try:
             token = request.headers["Authorization"]
-            data = S_JMQ.loads(token)
+            data = Admin_JMQ.loads(token)
             key_data = bytes(data, encoding="utf-8")
             key_data = base64.decodebytes(key_data)
             user_info_bytes = ENCRY_UTIL.decrypt(key_data)
             user_info = user_info_bytes.decode('utf-8')
+            if user_info:
+                return func(*args, **kwargs)
+            else:
+                return jsonify("token error")
         except KeyError:
             return jsonify({"code": 200, "data": {"msg": "缺少token"}})
         except SignatureExpired:
-            return jsonify({"code": 200, "data": {"msg": "token过期"}})
+            return jsonify({"code": 200, "data": {"msg": "token過期"}})
         except BadSignature:
-            return jsonify({"code": 200, "data": {"msg": "token错误"}})
-        user = ""
-        if user:
-            return func(*args, **kwargs)
-        else:
-            return jsonify("token error")
+            return jsonify({"code": 200, "data": {"msg": "token錯誤"}})
+        except Exception as e:
+            return jsonify({"code": 200, "data": {"msg": "token錯誤"}})
     return is_login
 
 
 def check_admin(func):
     @wraps(func)
     def is_admin(*args, **kwargs):
-        pass
-        return func(*args, **kwargs)
+        try:
+            token = request.headers["Authorization"]
+            data = Admin_JMQ.loads(token)
+            key_data = bytes(data, encoding="utf-8")
+            key_data = base64.decodebytes(key_data)
+            user_info_bytes = ENCRY_UTIL.decrypt(key_data)
+            user_info = user_info_bytes.decode('utf-8')
+            user_dict = eval(user_info)
+            if user_dict["role"] == 1:
+                return func(*args, **kwargs)
+            elif user_dict["role"] == 2:
+                # 權限2 不能刪除
+                if request.method == "DELETE":
+                    return jsonify({"code": 4004, "data": {"msg": "你沒有權限"}})
+                else:
+                    return func(*args, **kwargs)
+            elif user_dict["role"] == 3:
+                if request.method != "GET":
+                    # 權限3 只能看
+                    return jsonify({"code": 4004, "data": {"msg": "你沒有權限"}})
+                else:
+                    return func(*args, **kwargs)
+            else:
+                return jsonify("token error")
+        except KeyError:
+            return jsonify({"code": 200, "data": {"msg": "缺少token"}})
+        except SignatureExpired:
+            return jsonify({"code": 200, "data": {"msg": "token過期"}})
+        except BadSignature:
+            return jsonify({"code": 200, "data": {"msg": "token錯誤"}})
+        except Exception as e:
+            return jsonify({"code": 200, "data": {"msg": "token錯誤"}})
     return is_admin
 
 

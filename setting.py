@@ -4,8 +4,8 @@ import os
 # 基礎配置
 conf = configparser.ConfigParser()
 curpath = os.path.dirname(os.path.realpath(__file__))
-cfgpath = os.path.join(curpath, 'config.ini')
-# cfgpath = os.path.join(curpath, 'config-dev.ini')
+# cfgpath = os.path.join(curpath, 'config.ini')
+cfgpath = os.path.join(curpath, 'config-dev.ini')
 
 conf.read(cfgpath, encoding='utf-8')
 sections = conf.sections()
@@ -40,8 +40,8 @@ FILE = client[7][1]
 
 # 加密信息
 SALT = b"CHINA"
-JWT_KEYS = "WATCHS"
-TIMEOUT = 3600*9
+JWT_KEYS = "WATCHSZZ"
+ADMIN_JWT_KEYS = "ADMINZZ"
 
 
 merchantID = pay[0][1]
@@ -53,3 +53,11 @@ productionToken = pay[4][1]
 
 API_KEY = stripe_pay[0][1]
 PUB_KEY = stripe_pay[1][1]
+
+
+### 可配置
+with open("data.json", "r") as f:
+    file = eval(f.read())
+    ADMIN_TIMEOUT = file["admin_timeout"]
+    CLIENT_TIMEOUT = file["client_timeout"]
+    rate = file["rate"]
