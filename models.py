@@ -1,8 +1,12 @@
+import datetime
+
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate, MigrateCommand
 from flask_script import Manager
 from sqlalchemy import Integer, ForeignKey, Column, INTEGER, String, JSON, DATETIME, FLOAT, TEXT
+from sqlalchemy.orm import relationship
+
 from setting import SQLALCHEMY_DATABASE_URI
 
 
@@ -84,7 +88,7 @@ class Images(db.Model):
 class Watches(db.Model):
     __tablename__ = "watches"
     id = Column(INTEGER, primary_key=True, autoincrement=True)
-    uuid = Column(String(255))
+    uuid = Column(String(255), index=True)
     category_uuid = Column(String(255), index=True)
     brand_uuid = Column(String(255), index=True)
     name = Column(String(255))
@@ -128,7 +132,7 @@ class Watches(db.Model):
 class UserInfo(db.Model):
     __tablename__ = "user_info"
     id = Column(INTEGER, primary_key=True, autoincrement=True)
-    uuid = Column(String(255))
+    uuid = Column(String(255), index=True)
     first_name = Column(String(255))
     last_name = Column(String(255))
     username = Column(String(255), unique=True)
@@ -202,11 +206,12 @@ class ShoppingCar(db.Model):
     __tablename__ = "shopping_car"
     id = Column(INTEGER, autoincrement=True, primary_key=True)
     user_id = Column(INTEGER)
-    water_id = Column(INTEGER)
+    product_id = Column(INTEGER, ForeignKey("watches.id"))
     count = Column(INTEGER)
-    create_at = Column(DATETIME, nullable=True)
+    create_at = Column(DATETIME, default=datetime.datetime.now, nullable=True)
     update_at = Column(DATETIME, nullable=True)
     delete_at = Column(DATETIME, nullable=True)
+    shopping_product = relationship("Watches")
 
     def to_dict(self):
         column_name_list = [
@@ -222,10 +227,12 @@ class Favorite(db.Model):
     __tablename__ = "favorite"
     id = Column(INTEGER, autoincrement=True, primary_key=True)
     user_id = Column(INTEGER)
-    water_id = Column(INTEGER)
-    create_at = Column(DATETIME, nullable=True)
+    product_id = Column(INTEGER, ForeignKey("watches.id"))
+    create_at = Column(DATETIME, default=datetime.datetime.now, nullable=True)
     update_at = Column(DATETIME, nullable=True)
     delete_at = Column(DATETIME, nullable=True)
+
+    favorite_product = relationship("Watches")
 
     def to_dict(self):
         column_name_list = [
@@ -249,7 +256,7 @@ class Address(db.Model):
     district = Column(String(255))
     place = Column(String(255))
     mobile = Column(String(255))
-    is_delete = Column(INTEGER, default=1)
+    is_delete = Column(INTEGER, default=0)
 
     def to_dict(self):
         column_name_list = [
@@ -263,9 +270,14 @@ class Address(db.Model):
 
 class Admin(db.Model):
     __tablename__ = "admin"
+    id = Column(INTEGER, primary_key=True, autoincrement=True)
     username = Column(String(255))
     password = Column(String(255))
-    role = Column(INTEGER)
+    role = Column(INTEGER, ForeignKey("role.id"))
+    create_at = Column(DATETIME, nullable=True)
+    update_at = Column(DATETIME, nullable=True)
+    delete_at = Column(DATETIME, nullable=True)
+    admin_role = relationship("Role")  # backref反向关联
 
     def to_dict(self):
         column_name_list = [
@@ -278,8 +290,15 @@ class Admin(db.Model):
 
 
 class Role(db.Model):
+    __tablename__ = "role"
     id = Column(INTEGER, primary_key=True, autoincrement=True)
     role = Column(String(255))
+
+    def to_dict(self):
+        column_name_list = [
+            value[0] for value in self._sa_instance_state.attrs.items()
+        ]
+        return dict((column_name, getattr(self, column_name, None)) for column_name in column_name_list)
 
 
 if __name__ == '__main__':

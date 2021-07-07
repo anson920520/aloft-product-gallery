@@ -20,8 +20,8 @@ import string
 
 ENCRY_UTIL = des(b"DESCRYPT", CBC, b"\0\0\0\0\0\0\0\0", pad=None, padmode=PAD_PKCS5)
 
-S_JMQ = Serializer(JWT_KEYS, expires_in=CLIENT_TIMEOUT)
-Admin_JMQ = Serializer(ADMIN_JWT_KEYS, expires_in=ADMIN_TIMEOUT)
+S_JMQ = Serializer(JWT_KEYS, expires_in=CLIENT_TIMEOUT*3600)
+Admin_JMQ = Serializer(ADMIN_JWT_KEYS, expires_in=ADMIN_TIMEOUT*3600)
 
 
 def generate_auth_token(data):
