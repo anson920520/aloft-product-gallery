@@ -27,6 +27,7 @@ class Brand(db.Model):
     name_cn = Column(String(255))
     detail = Column(TEXT)
     count = Column(Integer)
+    image_uuid = Column(String(500))
     create_at = Column(DATETIME, nullable=True)
     update_at = Column(DATETIME, nullable=True)
     delete_at = Column(DATETIME, nullable=True)

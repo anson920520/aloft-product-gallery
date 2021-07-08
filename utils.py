@@ -3,7 +3,6 @@ import datetime
 import hashlib
 import io
 
-import jwt
 import xlsxwriter
 
 from setting import JWT_KEYS, ADMIN_TIMEOUT, CLIENT_TIMEOUT, SALT, ADMIN_JWT_KEYS
@@ -43,7 +42,7 @@ def check_login(func):
     def is_login(*args, **kwargs):
         try:
             token = request.headers["Authorization"]
-            data = Admin_JMQ.loads(token)
+            data = S_JMQ.loads(token)
             key_data = bytes(data, encoding="utf-8")
             key_data = base64.decodebytes(key_data)
             user_info_bytes = ENCRY_UTIL.decrypt(key_data)
@@ -53,13 +52,14 @@ def check_login(func):
             else:
                 return jsonify("token error")
         except KeyError:
-            return jsonify({"code": 200, "data": {"msg": "缺少token"}})
+            return jsonify({"code": 1003, "data": {"msg": "缺少token"}})
         except SignatureExpired:
-            return jsonify({"code": 200, "data": {"msg": "token過期"}})
+            return jsonify({"code": 1005, "data": {"msg": "token過期"}})
         except BadSignature:
-            return jsonify({"code": 200, "data": {"msg": "token錯誤"}})
+            return jsonify({"code": 4000, "data": {"msg": "token錯誤"}})
         except Exception as e:
-            return jsonify({"code": 200, "data": {"msg": "token錯誤"}})
+            print(e)
+            return jsonify({"code": 3000, "data": {"msg": "數據錯誤"}})
     return is_login
 
 
@@ -91,13 +91,13 @@ def check_admin(func):
             else:
                 return jsonify("token error")
         except KeyError:
-            return jsonify({"code": 200, "data": {"msg": "缺少token"}})
+            return jsonify({"code": 1003, "data": {"msg": "缺少token"}})
         except SignatureExpired:
-            return jsonify({"code": 200, "data": {"msg": "token過期"}})
+            return jsonify({"code": 1005, "data": {"msg": "token過期"}})
         except BadSignature:
-            return jsonify({"code": 200, "data": {"msg": "token錯誤"}})
+            return jsonify({"code": 4000, "data": {"msg": "token錯誤"}})
         except Exception as e:
-            return jsonify({"code": 200, "data": {"msg": "token錯誤"}})
+            return jsonify({"code": 3000, "data": {"msg": "數據錯誤"}})
     return is_admin
 
 

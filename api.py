@@ -84,6 +84,7 @@ def admin_user():
             ret = {"code": 200, "data": {"user_list": item_dict}}
         else:
             user_obj = Admin.query.filter_by(delete_at=None).order_by(Admin.id.desc()).limit(int(offset)).offset((int(page)-1)*int(offset)).all()
+            count = Admin.query.filter_by(delete_at=None).count()
             user_list = []
             for item in user_obj:
                 item_dict = {}
@@ -93,7 +94,7 @@ def admin_user():
                 item_dict["role_name"] = item.admin_role.role
                 user_list.append(item_dict)
             print(user_list)
-            ret = {"code": 200, "data": {"user_list": user_list}}
+            ret = {"code": 200, "data": {"user_list": user_list, "count": count}}
         return jsonify(ret)
     elif method == "PUT":
         data = request.json
@@ -169,6 +170,79 @@ def client_user():
     ret = {"code": 200, "data": {"user_list": user_list}}
     return jsonify(ret)
 
+# 注册
+@admin_api.route("/client/create/user", methods=["POST"])
+def client_create_user():
+    data = request.json
+    username = data.get("username")
+    password = data.get("password", "123456")
+    email = data.get("email")
+    phone = data.get("phone")
+    first_name = data.get("first_name")
+    last_name = data.get("last_name")
+    birthday = data.get("birthday")
+    country = data.get("country")
+    if not all([username, phone, email]):
+        ret = {"code": 1002, "data": {"msg": "缺少必傳參數"}}
+        return jsonify(ret)
+    is_obj = UserInfo.query.filter_by(username=username, delete_at=None).first()
+    if is_obj:
+        ret = {"code": 1004, "data": {"msg": "此用户已存在"}}
+        return jsonify(ret)
+    str_uuid = uuid.uuid4().hex
+    user_obj = UserInfo(uuid=str_uuid, username=username, password=hash_password(password), email=email, phone=phone,
+                        first_name=first_name, last_name=last_name, birthday=birthday, country=country, create_at=datetime.datetime.now())
+    db.session.add(user_obj)
+    db.session.commit()
+    ret = {"code": 200, "data": {"msg": "增加成功"}}
+
+    return jsonify(ret)
+
+# 编辑
+@admin_api.route("/client/edit/user", methods=["PUT"])
+@check_login
+def client_edit_user():
+    data = request.json
+    uid = data.get("uuid")
+    email = data.get("email")
+    phone = data.get("phone")
+    first_name = data.get("first_name")
+    last_name = data.get("last_name")
+    birthday = data.get("birthday")
+    country = data.get("country")
+    user_obj = UserInfo.query.filter_by(uuid=uid).first()
+    if user_obj:
+        user_obj.email = email
+        user_obj.phone = phone
+        user_obj.first_name = first_name
+        user_obj.last_name = last_name
+        user_obj.birthday = birthday
+        user_obj.country = country
+        user_obj.update_at = datetime.datetime.now()
+        db.session.commit()
+        ret = {"code": 200, "data": {"msg": "更改成功"}}
+    else:
+        ret = {"code": 1003, "data": {"msg": "用戶不存在"}}
+    return jsonify(ret)
+
+
+@admin_api.route("/client/edit/pwd", methods=["PUT"])
+@check_login
+def client_edit_pwd():
+    data = request.json
+    uid = data.get("uuid")
+    password = data.get("password", "123456")
+    user_obj = UserInfo.query.filter_by(uuid=uid).first()
+    if user_obj:
+        user_obj.password = hash_password(password)
+        user_obj.update_at = datetime.datetime.now()
+        db.session.commit()
+        ret = {"code": 200, "data": {"msg": "更改成功"}}
+    else:
+        ret = {"code": 1003, "data": {"msg": "用戶不存在"}}
+    return jsonify(ret)
+
+
 # 用戶信息
 @admin_api.route("/user", methods=["GET", "POST", "PUT", "DELETE"])
 @check_admin
@@ -190,9 +264,10 @@ def user():
                 ret = {"code": 200, "data": {"user_list": user_list}}
             else:
                 user_obj = UserInfo.query.filter_by(delete_at=None).order_by(UserInfo.id.desc()).limit(int(offset)).offset((int(page)-1)*int(offset)).all()
+                count = UserInfo.query.filter_by(delete_at=None).count()
                 user_list = loads(user_obj)
                 print(user_list)
-                ret = {"code": 200, "data": {"user_list": user_list}}
+                ret = {"code": 200, "data": {"user_list": user_list, "count": count}}
         return jsonify(ret)
     elif method == "PUT":
         data = request.json
@@ -352,10 +427,19 @@ def favorite():
                 item_dict["user_id"] = item.user_id
                 item_dict["id"] = item.id
                 item_dict["product_id"] = item.product_id
-                item_dict["favorite_product"] = item.favorite_product.to_dict()
+                item_dict["favorite_product"] = {
+                    "price": item.favorite_product.price,
+                    "id": item.favorite_product.id,
+                    "uuid": item.favorite_product.uuid,
+                    "name": item.favorite_product.name,
+                    "name_en": item.favorite_product.name_en,
+                    "name_cn": item.favorite_product.name_cn,
+                    "images": loads(Images.query.filter_by(watches_uuid=item.favorite_product.uuid).first())
+                } # item.favorite_product.to_dict()
                 favorite_list.append(item_dict)
             print(favorite_list)
-            ret = {"code": 200, "data": {"favorite_list": favorite_list}}
+            count = Favorite.query.filter_by(user_id=user_id, delete_at=None).count()
+            ret = {"code": 200, "data": {"favorite_list": favorite_list, "count": count}}
             return jsonify(ret)
         else:
             return jsonify({"code": 4005, "data": {"msg": "缺少參數"}})
@@ -377,7 +461,9 @@ def favorite():
         data = request.json
         uid = data.get("id")
         user_obj = Favorite.query.filter_by(id=uid).first()
-        user_obj.delete_at = datetime.datetime.now()
+        # user_obj.delete_at = datetime.datetime.now()
+        if user_obj:
+            db.session.delete(user_obj)
         db.session.commit()
         ret = {"code": 200, "data": {"msg": "更改成功"}}
         return jsonify(ret)
@@ -403,10 +489,20 @@ def shopping_car():
                 item_dict["id"] = item.id
                 item_dict["count"] = item.count
                 item_dict["product_id"] = item.product_id
-                item_dict["shopping_product"] = item.shopping_product.to_dict()
+                item_dict["shopping_product"] = {
+                    "price": item.shopping_product.price,
+                    "id": item.shopping_product.id,
+                    "uuid": item.shopping_product.uuid,
+                    "name": item.shopping_product.name,
+                    "name_en": item.shopping_product.name_en,
+                    "name_cn": item.shopping_product.name_cn,
+                    "images": loads(Images.query.filter_by(watches_uuid=item.shopping_product.uuid).first())
+                } # item.shopping_product.to_dict()
+                # item_dict["images"] = loads(Images.query.filter_by(watches_uuid=item.shopping_product.uuid).all())
                 addr_list.append(item_dict)
             print(addr_list)
-            ret = {"code": 200, "data": {"car_list": addr_list}}
+            count = ShoppingCar.query.filter_by(user_id=user_id, delete_at=None).count()
+            ret = {"code": 200, "data": {"car_list": addr_list, "count": count}}
             return jsonify(ret)
         if id:
             addr_obj = ShoppingCar.query.filter_by(id=id, delete_at=None).first()
@@ -440,7 +536,11 @@ def shopping_car():
         if not all([user_id, product_id, count]):
             ret = {"code": 1002, "data": {"msg": "缺少必傳參數"}}
             return jsonify(ret)
-        user_obj = ShoppingCar(user_id=user_id, product_id=product_id, count=count)
+        user_obj = ShoppingCar.query.filter_by(user_id=user_id, product_id=product_id).first()
+        if user_obj:
+            user_obj.count += count
+        else:
+            user_obj = ShoppingCar(user_id=user_id, product_id=product_id, count=count)
         db.session.add(user_obj)
         db.session.commit()
         ret = {"code": 200, "data": {"msg": "增加成功"}}
@@ -450,7 +550,9 @@ def shopping_car():
         data = request.json
         uid = data.get("id")
         user_obj = ShoppingCar.query.filter_by(id=uid).first()
-        user_obj.delete_at = datetime.datetime.now()
+        if user_obj:
+            # user_obj.delete_at = datetime.datetime.now()
+            db.session.delete(user_obj)
         db.session.commit()
         ret = {"code": 200, "data": {"msg": "刪除成功"}}
         return jsonify(ret)
@@ -469,18 +571,31 @@ def client_brand():
         brand_obj_count = Brand.query.filter(
             or_(Brand.name.like("%" + search + "%"), Brand.name_en.like("%" + search + "%"),
                 Brand.name_cn.like("%" + search + "%"))).filter_by(delete_at=None).count()
-        brand_list = loads(brand_obj)
+        # brand_list = loads(brand_obj)
+        brand_list = []
+        for item in brand_obj:
+            item_dict = item.to_dict()
+            item_dict["images"] = loads(Images.query.filter_by(uuid=item.image_uuid).first())
+            brand_list.append(item_dict)
         ret = {"code": 200, "data": {"brand_list": brand_list, "count": brand_obj_count}, "msg": "success"}
     else:
         if uid:
             brand_obj = Brand.query.filter_by(uuid=uid, delete_at=None).first()
-            brand_list = loads(brand_obj)
+            # brand_list = loads(brand_obj)
+            brand_list = []
+            if brand_obj:
+                item_dict = brand_obj.to_dict()
+                item_dict["images"] = item_dict["images"] = loads(Images.query.filter_by(uuid=brand_obj.image_uuid).first())
+                brand_list.append(item_dict)
             ret = {"code": 200, "data": {"brand_list": brand_list}, "msg": "success"}
         else:
             brand_obj = Brand.query.filter_by(delete_at=None).order_by(Brand.create_at.desc()).limit(int(offset)).offset((int(page)-1)*int(offset)).all()
             brand_count = Brand.query.filter_by(delete_at=None).count()
-            brand_list = loads(brand_obj)
-
+            brand_list = []
+            for item in brand_obj:
+                item_dict = item.to_dict()
+                item_dict["images"] = loads(Images.query.filter_by(uuid=item.image_uuid).first())
+                brand_list.append(item_dict)
             ret = {"code": 200, "data": {"brand_list": brand_list, "count": brand_count}, "msg": "success"}
     return jsonify(ret)
 
@@ -500,18 +615,29 @@ def brand():
             brand_obj_count = Brand.query.filter(
                 or_(Brand.name.like("%" + search + "%"), Brand.name_en.like("%" + search + "%"),
                     Brand.name_cn.like("%" + search + "%"))).filter_by(delete_at=None).count()
-            brand_list = loads(brand_obj)
+            brand_list = []
+            for item in brand_obj:
+                item_dict = item.to_dict()
+                item_dict["images"] = loads(Images.query.filter_by(uuid=item.image_uuid).first())
+                brand_list.append(item_dict)
             ret = {"code": 200, "data": {"brand_list": brand_list, "count": brand_obj_count}, "msg": "success"}
         else:
             if uid:
                 brand_obj = Brand.query.filter_by(uuid=uid, delete_at=None).first()
-                brand_list = loads(brand_obj)
+                brand_list = []
+                if brand_obj:
+                    item_dict = brand_obj.to_dict()
+                    item_dict["images"] = item_dict["images"] = loads(Images.query.filter_by(uuid=brand_obj.image_uuid).first())
+                    brand_list.append(item_dict)
                 ret = {"code": 200, "data": {"brand_list": brand_list}, "msg": "success"}
             else:
                 brand_obj = Brand.query.filter_by(delete_at=None).order_by(Brand.create_at.desc()).limit(int(offset)).offset((int(page)-1)*int(offset)).all()
                 brand_count = Brand.query.filter_by(delete_at=None).count()
-                brand_list = loads(brand_obj)
-
+                brand_list = []
+                for item in brand_obj:
+                    item_dict = item.to_dict()
+                    item_dict["images"] = item_dict["images"] = loads(Images.query.filter_by(uuid=item.image_uuid).first())
+                    brand_list.append(item_dict)
                 ret = {"code": 200, "data": {"brand_list": brand_list, "count": brand_count}, "msg": "success"}
         return jsonify(ret)
     elif method == "PUT":
@@ -521,11 +647,13 @@ def brand():
         name_en = data.get("name_en")
         name_cn = data.get("name_cn")
         detail = data.get("detail")
+        image_uuid = data.get("image_uuid")
         brand_obj = Brand.query.filter_by(uuid=uid).first()
         brand_obj.name = name
         brand_obj.name_en = name_en
         brand_obj.name_cn = name_cn
         brand_obj.detail = detail
+        brand_obj.image_uuid = image_uuid
         brand_obj.update_at = datetime.datetime.now()
         db.session.commit()
         ret = {"code": 200, "data": {}, "msg": "更改成功"}
@@ -536,15 +664,16 @@ def brand():
         name_en = data.get("name_en")
         name_cn = data.get("name_cn")
         detail = data.get("detail")
+        image_uuid = data.get("image_uuid")
         if not all([name, name_en, name_cn, detail]):
             ret = {"code": 1002, "data": {}, "msg": "缺少必傳參數"}
             return jsonify(ret)
         str_uuid = uuid.uuid4().hex
-        user_obj = Brand(uuid=str_uuid, name=name, name_en=name_en, name_cn=name_cn,detail=detail,
+        user_obj = Brand(uuid=str_uuid, name=name, image_uuid=image_uuid, name_en=name_en, name_cn=name_cn,detail=detail,
                             create_at=datetime.datetime.now())
         db.session.add(user_obj)
         db.session.commit()
-        ret = {"code": 200, "data": {}, "msg": "增加成功"}
+        ret = {"code": 200, "data": str_uuid, "msg": "增加成功"}
 
         return jsonify(ret)
     else:
@@ -960,7 +1089,7 @@ def search():
         # quotes = response["quotes"]
         quotes = {"USDHKD": 10, "USD": 1, "USDEUR": 0.9, "USDAUD": 2, "USDCNY": 6}
         print(quotes)
-        water_obj = Watches.query.filter(or_(Watches.name.like("%" + searchs + "%"),
+        water_obj = Watches.query.filter(or_(Watches.model.like("%"+search+"%"),Watches.name.like("%" + searchs + "%"),
                                              Watches.name_en.like("%" + searchs + "%"), Watches.name_cn.like("%"+searchs+"%"))).filter_by(
             delete_at=None).order_by(Watches.create_at.desc(), Watches.id.desc()).offset((int(page) - 1) * int(offset)).limit(
             int(offset)).all()
@@ -972,7 +1101,7 @@ def search():
             images = Images.query.filter_by(watches_uuid=item_dict["uuid"]).all()
             item_dict["images"] = loads(images)
             watch_list.append(item_dict)
-        count = Watches.query.filter(or_(Watches.name.like("%" + searchs + "%"),
+        count = Watches.query.filter(or_(Watches.model.like("%"+search+"%"), Watches.name.like("%" + searchs + "%"),
                                              Watches.name_en.like("%" + searchs + "%"), Watches.name_cn.like("%"+searchs+"%"))).filter_by(
             delete_at=None).count()
         ret = {"code": 200, "data": {"watch_list": watch_list, "count": count}, "msg": "success"}
@@ -989,7 +1118,7 @@ def search():
         #     delete_at=None).order_by(Watches.create_at.desc(), Watches.id.desc()).offset(
         #     (int(page) - 1) * int(offset)).limit(
         #     int(offset)).all()
-        water_obj = Watches.query.filter(or_(Watches.name.like("%" + search + "%"),
+        water_obj = Watches.query.filter(or_(Watches.model.like("%"+search+"%"), Watches.name.like("%" + search + "%"),
                                              Watches.name_en.like("%" + search + "%"),
                                              Watches.name_cn.like("%" + search + "%"))).filter_by(
             delete_at=None).order_by(Watches.create_at.desc(), Watches.id.desc()).offset(
@@ -1123,7 +1252,7 @@ def pay():
     token = data_json.get("token")
     product_list = data_json.get("product")  # 數組 [[1, 2]]
     user_id = data_json.get("user_id")
-    address = data_json.get("address_id")
+    address = data_json.get("address_id", 1)
     total = 0
     desc_list = ""
     data_msg = ""
@@ -1173,7 +1302,7 @@ def pay():
     order_num = "WAS"+str(int(time.time()))
     uid = uuid.uuid4().hex
     # 建立訂單
-    order_obj = Orders(uuid=uid, order_num=order_num, handsel=rate/100*total, total=total, pay_methods=methods, status=1, user_id=user_id, address_id=address, create_at=datetime.datetime.now())
+    order_obj = Orders(uuid=uid, order_num=order_num, handsel=rate/100*total, total=total, pay_methods=methods, status=1, user_id=user_id, create_at=datetime.datetime.now())
     orm_list = []
     orm_list.append(order_obj)
     for item in product_detail_list:
@@ -1186,9 +1315,9 @@ def pay():
         obj = OrderDetail(order_id=order_num, product_name=item["product_name"], product_image=json.dumps(item["product_image"]), product_price=item["product_price"], product_number=item["product_number"], total=item["total"], product_id=item["product_id"])
         orm_list.append(obj)
         # 刪除購物車
-        car_obj = ShoppingCar.query.filter_by(user_id=user_id, water_id=item["product_id"]).first()
-        car_obj.delete_at = datetime.datetime.now()
-        orm_list.append(car_obj)
+        # car_obj = ShoppingCar.query.filter_by(user_id=user_id, product_id=item["product_id"]).first()
+        # if car_obj:
+        #     db.session.delete(car_obj)
     db.session.add_all(orm_list)
     db.session.commit()
     db.session.close()
@@ -1205,27 +1334,45 @@ def client_order():
     search = data.get("search")
     user_id = data.get("user_id")
     if search:
-        order_list = Orders.query.filter(Orders.user_id==user_id).filter(
+        # order_list = Orders.query.filter(Orders.user_id==user_id).filter(
+        #     or_(Orders.order_num.like("%" + search + "%"), Orders.name.like("%" + search + "%"))).filter_by(
+        #     delete_at=None).order_by(Orders.create_at.desc(), Orders.id.desc()).offset(
+        #     (int(page) - 1) * int(offset)).limit(int(offset)).all()
+        order_list = db.session.query(Orders, OrderDetail).filter(Orders.order_num==OrderDetail.order_id).filter(Orders.user_id == user_id).filter(
             or_(Orders.order_num.like("%" + search + "%"), Orders.name.like("%" + search + "%"))).filter_by(
             delete_at=None).order_by(Orders.create_at.desc(), Orders.id.desc()).offset(
             (int(page) - 1) * int(offset)).limit(int(offset)).all()
+        order_lists = []
+        for item in order_list:
+            item_dict = item[0].to_dict()
+            item_dict["detail"] = item[1].to_dict()
+            order_lists.append(item_dict)
         count = Orders.query.filter(Orders.user_id==user_id).filter_by(delete_at=None).count()
-        ret = {"code": 200, "data": loads(order_list), "count": count}
+        ret = {"code": 200, "data": order_lists, "count": count}
     else:
         if data.get("order_num"):
             order_obj = Orders.query.filter(Orders.user_id==user_id).filter_by(delete_at=None, order_num=data.get("order_num")).first()
             order_data = order_obj.to_dict()
             order_detail = OrderDetail.query.filter_by(order_id=order_obj.order_num).all()
             order_data["detail"] = loads(order_detail)
-            order_address = Address.query.filter_by(id=order_obj.address_id).all()
-            order_data["address"] = loads(order_address)
+            # order_address = Address.query.filter_by(id=order_obj.address_id).all()
+            # order_data["address"] = loads(order_address)
             ret = {"code": 200, "data": order_data}
         else:
-            order_list = Orders.query.filter(Orders.user_id==user_id).filter_by(delete_at=None).order_by(Orders.create_at.desc(),
-                                                                         Orders.id.desc()).offset(
+            # order_list = Orders.query.filter(Orders.user_id==user_id).filter_by(delete_at=None).order_by(Orders.create_at.desc(),
+            #                                                              Orders.id.desc()).offset(
+            #     (int(page) - 1) * int(offset)).limit(int(offset)).all()
+            order_list = db.session.query(Orders, OrderDetail).filter(Orders.order_num==OrderDetail.order_id).filter(Orders.user_id == user_id).filter_by(delete_at=None).order_by(
+                Orders.create_at.desc(),
+                Orders.id.desc()).offset(
                 (int(page) - 1) * int(offset)).limit(int(offset)).all()
+            order_lists = []
+            for item in order_list:
+                item_dict = item[0].to_dict()
+                item_dict["detail"] = item[1].to_dict()
+                order_lists.append(item_dict)
             count = Orders.query.filter(Orders.user_id==user_id).filter_by(delete_at=None).count()
-            ret = {"code": 200, "data": loads(order_list), "count": count}
+            ret = {"code": 200, "data": order_lists, "count": count}
     return jsonify(ret)
 
 
@@ -1244,22 +1391,32 @@ def order():
         page = data.get("page", 1)
         search = data.get("search")
         if search:
-            order_list = Orders.query.filter(or_(Orders.order_num.like("%"+search+"%"), Orders.name.like("%"+search+"%"))).filter_by(delete_at=None).order_by(Orders.create_at.desc(), Orders.id.desc()).offset((int(page)-1)*int(offset)).limit(int(offset)).all()
+            order_list = db.session.query(Orders, OrderDetail).filter(Orders.order_num == OrderDetail.order_id).filter(or_(Orders.order_num.like("%"+search+"%"), Orders.name.like("%"+search+"%"))).filter_by(delete_at=None).order_by(Orders.create_at.desc(), Orders.id.desc()).offset((int(page)-1)*int(offset)).limit(int(offset)).all()
             count = Orders.query.filter_by(delete_at=None).count()
-            ret = {"code": 200, "data": loads(order_list), "count": count}
+            order_lists = []
+            for item in order_list:
+                item_dict = item[0].to_dict()
+                item_dict["detail"] = item[1].to_dict()
+                order_lists.append(item_dict)
+            ret = {"code": 200, "data": order_lists, "count": count}
         else:
             if data.get("order_num"):
                 order_obj = Orders.query.filter_by(delete_at=None, order_num=data.get("order_num")).first()
                 order_data = order_obj.to_dict()
                 order_detail = OrderDetail.query.filter_by(order_id=order_obj.order_num).all()
                 order_data["detail"] = loads(order_detail)
-                order_address = Address.query.filter_by(id=order_obj.address_id).all()
-                order_data["address"] = loads(order_address)
+                # order_address = Address.query.filter_by(id=order_obj.address_id).all()
+                # order_data["address"] = loads(order_address)
                 ret = {"code": 200, "data": order_data}
             else:
-                order_list = Orders.query.filter_by(delete_at=None).order_by(Orders.create_at.desc(), Orders.id.desc()).offset((int(page)-1)*int(offset)).limit(int(offset)).all()
+                order_list = db.session.query(Orders, OrderDetail).filter(Orders.order_num == OrderDetail.order_id).filter_by(delete_at=None).order_by(Orders.create_at.desc(), Orders.id.desc()).offset((int(page)-1)*int(offset)).limit(int(offset)).all()
+                order_lists = []
+                for item in order_list:
+                    item_dict = item[0].to_dict()
+                    item_dict["detail"] = item[1].to_dict()
+                    order_lists.append(item_dict)
                 count = Orders.query.filter_by(delete_at=None).count()
-                ret = {"code": 200, "data": loads(order_list), "count": count}
+                ret = {"code": 200, "data": order_lists, "count": count}
         return jsonify(ret)
     elif method == "PUT":
         # 取消訂單  返還數量
