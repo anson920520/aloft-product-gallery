@@ -97,6 +97,7 @@ def check_admin(func):
         except BadSignature:
             return jsonify({"code": 4000, "data": {"msg": "token錯誤"}})
         except Exception as e:
+            print(e)
             return jsonify({"code": 3000, "data": {"msg": "數據錯誤"}})
     return is_admin
 

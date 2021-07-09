@@ -77,6 +77,7 @@ def admin_user():
         if uid:
             user_obj = Admin.query.filter_by(id=uid, delete_at=None).first()
             item_dict = {}
+            item_dict["id"] = user_obj.id
             item_dict["username"] = user_obj.username
             item_dict["password"] = user_obj.password
             item_dict["role"] = user_obj.role
@@ -88,6 +89,7 @@ def admin_user():
             user_list = []
             for item in user_obj:
                 item_dict = {}
+                item_dict["id"] = item.id
                 item_dict["username"] = item.username
                 item_dict["password"] = item.password
                 item_dict["role"] = item.role
@@ -648,12 +650,14 @@ def brand():
         name_cn = data.get("name_cn")
         detail = data.get("detail")
         image_uuid = data.get("image_uuid")
+        count = data.get("count")
         brand_obj = Brand.query.filter_by(uuid=uid).first()
         brand_obj.name = name
         brand_obj.name_en = name_en
         brand_obj.name_cn = name_cn
         brand_obj.detail = detail
         brand_obj.image_uuid = image_uuid
+        brand_obj.count = count
         brand_obj.update_at = datetime.datetime.now()
         db.session.commit()
         ret = {"code": 200, "data": {}, "msg": "更改成功"}
@@ -665,11 +669,12 @@ def brand():
         name_cn = data.get("name_cn")
         detail = data.get("detail")
         image_uuid = data.get("image_uuid")
+        count = data.get("count", 100)
         if not all([name, name_en, name_cn, detail]):
             ret = {"code": 1002, "data": {}, "msg": "缺少必傳參數"}
             return jsonify(ret)
         str_uuid = uuid.uuid4().hex
-        user_obj = Brand(uuid=str_uuid, name=name, image_uuid=image_uuid, name_en=name_en, name_cn=name_cn,detail=detail,
+        user_obj = Brand(uuid=str_uuid, name=name, count=count, image_uuid=image_uuid, name_en=name_en, name_cn=name_cn,detail=detail,
                             create_at=datetime.datetime.now())
         db.session.add(user_obj)
         db.session.commit()
@@ -1089,7 +1094,7 @@ def search():
         # quotes = response["quotes"]
         quotes = {"USDHKD": 10, "USD": 1, "USDEUR": 0.9, "USDAUD": 2, "USDCNY": 6}
         print(quotes)
-        water_obj = Watches.query.filter(or_(Watches.model.like("%"+search+"%"),Watches.name.like("%" + searchs + "%"),
+        water_obj = Watches.query.filter(or_(Watches.model.like("%"+searchs+"%"),Watches.name.like("%" + searchs + "%"),
                                              Watches.name_en.like("%" + searchs + "%"), Watches.name_cn.like("%"+searchs+"%"))).filter_by(
             delete_at=None).order_by(Watches.create_at.desc(), Watches.id.desc()).offset((int(page) - 1) * int(offset)).limit(
             int(offset)).all()
@@ -1101,7 +1106,7 @@ def search():
             images = Images.query.filter_by(watches_uuid=item_dict["uuid"]).all()
             item_dict["images"] = loads(images)
             watch_list.append(item_dict)
-        count = Watches.query.filter(or_(Watches.model.like("%"+search+"%"), Watches.name.like("%" + searchs + "%"),
+        count = Watches.query.filter(or_(Watches.model.like("%"+searchs+"%"), Watches.name.like("%" + searchs + "%"),
                                              Watches.name_en.like("%" + searchs + "%"), Watches.name_cn.like("%"+searchs+"%"))).filter_by(
             delete_at=None).count()
         ret = {"code": 200, "data": {"watch_list": watch_list, "count": count}, "msg": "success"}
@@ -1169,7 +1174,7 @@ def upload():
         # image_name = request.form.get("image_name")
         try:
             size = len(image.read())
-            if size >= IMG_SIZE:
+            if size >= 5*1024*1024:
                 data = {"code": 1001, "data": {"msg": "請上轉圖片小於3M"}}
                 return jsonify(data)
             str_uid = uuid.uuid4().hex
@@ -1187,7 +1192,7 @@ def upload():
                 print(e)
                 data = {"code": 1002, "msg": "上傳失敗"}
                 return jsonify(data)
-        except:
+        except Exception as e:
             data = {"code": 1002, "msg": "上傳失敗"}
         return jsonify(data)
     elif method == "PUT":
@@ -1456,7 +1461,7 @@ def order():
         uid = uuid.uuid4().hex
         # 建立訂單
         order_obj = Orders(uuid=uid, order_num=order_num, handsel=rate / 100 * total, total=total, pay_methods="stripe",
-                           status=1, user_id=user_id, address_id=address, create_at=datetime.datetime.now())
+                           status=1, user_id=user_id,  create_at=datetime.datetime.now())
         orm_list = []
         orm_list.append(order_obj)
         for item in product_detail_list:
@@ -1471,9 +1476,9 @@ def order():
                               product_number=item["product_number"], total=item["total"], product_id=item["product_id"])
             orm_list.append(obj)
             # 刪除購物車
-            car_obj = ShoppingCar.query.filter_by(user_id=user_id, water_id=item["product_id"]).first()
-            car_obj.delete_at = datetime.datetime.now()
-            orm_list.append(car_obj)
+            # car_obj = ShoppingCar.query.filter_by(user_id=user_id, water_id=item["product_id"]).first()
+            # car_obj.delete_at = datetime.datetime.now()
+            # orm_list.append(car_obj)
         db.session.add_all(orm_list)
         db.session.commit()
         db.session.close()
@@ -1532,3 +1537,19 @@ def statistics_count():
     if brand_uuid:
         count = Watches.query.filter_by(brand_uuid=brand_uuid).count()
         return jsonify({"code": 200, "count": count})
+
+
+@admin_api.route("/client/setting", methods=["GET"])
+def client_settings():
+    """
+    訂單
+    :return:
+    """
+    method = request.method
+    if method == "GET":
+        with open("data.json", "r") as f:
+            file = eval(f.read())
+        return jsonify({"code": 200, "data": file})
+
+
+# TODO :匯率、和分類品牌

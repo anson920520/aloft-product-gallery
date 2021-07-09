@@ -37,6 +37,7 @@ BASE_URL = client[4][1]
 IMG_PATH = client[5][1]
 PDF_PATH = client[6][1]
 FILE = client[7][1]
+ACCESS_KEY = client[8][1]
 
 # 加密信息
 SALT = b"CHINA"
