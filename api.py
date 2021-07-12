@@ -568,6 +568,17 @@ def client_brand():
     offset = request.args.get("offset", 20)
     page = request.args.get("page", 1)
     search = request.args.get("search")  # 模糊查找
+    category_uuid = request.args.get("category_uuid")
+    if category_uuid:
+        brand_obj_list = Brand.query.filter_by(category_uuid=category_uuid, delete_at=None).all()
+        count = Brand.query.filter_by(category_uuid=category_uuid, delete_at=None).count()
+        brand_list = []
+        for brand_obj in brand_obj_list:
+            item_dict = brand_obj.to_dict()
+            item_dict["images"] = item_dict["images"] = loads(Images.query.filter_by(uuid=brand_obj.image_uuid).first())
+            brand_list.append(item_dict)
+        ret = {"code": 200, "data": {"brand_list": brand_list, "count": count}, "msg": "success"}
+        return jsonify(ret)
     if search:
         brand_obj = Brand.query.filter(or_(Brand.name.like("%"+search+"%"), Brand.name_en.like("%"+search+"%"), Brand.name_cn.like("%"+search+"%"))).filter_by(delete_at=None).order_by(Brand.create_at.desc()).limit(int(offset)).offset((int(page)-1)*int(offset)).all()
         brand_obj_count = Brand.query.filter(
@@ -612,6 +623,18 @@ def brand():
         offset = request.args.get("offset", 20)
         page = request.args.get("page", 1)
         search = request.args.get("search")  # 模糊查找
+        category_uuid = request.args.get("category_uuid")
+        if category_uuid:
+            brand_obj_list = Brand.query.filter_by(category_uuid=category_uuid, delete_at=None).all()
+            count = Brand.query.filter_by(category_uuid=category_uuid, delete_at=None).count()
+            brand_list = []
+            for brand_obj in brand_obj_list:
+                item_dict = brand_obj.to_dict()
+                item_dict["images"] = item_dict["images"] = loads(
+                    Images.query.filter_by(uuid=brand_obj.image_uuid).first())
+                brand_list.append(item_dict)
+            ret = {"code": 200, "data": {"brand_list": brand_list, "count": count}, "msg": "success"}
+            return jsonify(ret)
         if search:
             brand_obj = Brand.query.filter(or_(Brand.name.like("%"+search+"%"), Brand.name_en.like("%"+search+"%"), Brand.name_cn.like("%"+search+"%"))).filter_by(delete_at=None).order_by(Brand.create_at.desc()).limit(int(offset)).offset((int(page)-1)*int(offset)).all()
             brand_obj_count = Brand.query.filter(
@@ -709,7 +732,7 @@ def client_category():
         ret = {"code": 200, "data": {"category_list":loads(category_list), "count": count}, "msg": "success"}
     else:
         if data.get("uuid"):
-            category_list = Category.query.filter_by(delete_at=None, uuid=data.get("uuid"))
+            category_list = Category.query.filter_by(delete_at=None, uuid=data.get("uuid")).first()
             ret = {"code": 200, "data": {"category_list":loads(category_list)}, "msg": "success"}
         else:
             category_list = Category.query.filter_by(delete_at=None).order_by(Category.create_at.desc(), Category.id.desc()).offset((int(page)-1)*int(offset)).limit(int(offset)).all()
@@ -740,7 +763,7 @@ def category():
             ret = {"code": 200, "data": {"category_list":loads(category_list), "count": count}, "msg": "success"}
         else:
             if data.get("uuid"):
-                category_list = Category.query.filter_by(delete_at=None, uuid=data.get("uuid"))
+                category_list = Category.query.filter_by(delete_at=None, uuid=data.get("uuid")).first()
                 ret = {"code": 200, "data": {"category_list":loads(category_list)}, "msg": "success"}
             else:
                 category_list = Category.query.filter_by(delete_at=None).order_by(Category.create_at.desc(), Category.id.desc()).offset((int(page)-1)*int(offset)).limit(int(offset)).all()
@@ -807,7 +830,11 @@ def client_watch():
     # response = requests.get(url).json()
     # print(response)
     # quotes = response["quotes"]
-    quotes = {"USDHKD": 10, "USD": 1, "USDEUR": 0.9, "USDAUD": 2, "USDCNY": 6}
+    # quotes = {"USDHKD": 10, "USD": 1, "USDEUR": 0.9, "USDAUD": 2, "USDCNY": 6}
+    with open("rate.json", "r", encoding="utf-8") as f:
+        file = f.read()
+    response = json.loads(file)
+    quotes = response["quotes"]
     print(quotes)
     # 模糊查
     if search:
@@ -915,7 +942,11 @@ def watch():
         # url = "http://api.currencylayer.com/live?access_key=502b5f31ccef9c076feaaaf54c460e7d"
         # response = requests.get(url).json()
         # quotes = response["quotes"]
-        quotes = {"USDHKD": 10, "USD": 1, "USDEUR": 0.9, "USDAUD": 2, "USDCNY": 6}
+        # quotes = {"USDHKD": 10, "USD": 1, "USDEUR": 0.9, "USDAUD": 2, "USDCNY": 6}
+        with open("rate.json", "r", encoding="utf-8") as f:
+            file = f.read()
+        response = json.loads(file)
+        quotes = response["quotes"]
         print(quotes)
         # 模糊查
         if search:
@@ -1092,8 +1123,12 @@ def search():
         # url = "http://api.currencylayer.com/live?access_key=502b5f31ccef9c076feaaaf54c460e7d"
         # response = requests.get(url).json()
         # quotes = response["quotes"]
-        quotes = {"USDHKD": 10, "USD": 1, "USDEUR": 0.9, "USDAUD": 2, "USDCNY": 6}
-        print(quotes)
+        with open("rate.json", "r", encoding="utf-8") as f:
+            file = f.read()
+        response = json.loads(file)
+        quotes = response["quotes"]
+        # quotes = {"USDHKD": 10, "USD": 1, "USDEUR": 0.9, "USDAUD": 2, "USDCNY": 6}
+        #print(quotes)
         water_obj = Watches.query.filter(or_(Watches.model.like("%"+searchs+"%"),Watches.name.like("%" + searchs + "%"),
                                              Watches.name_en.like("%" + searchs + "%"), Watches.name_cn.like("%"+searchs+"%"))).filter_by(
             delete_at=None).order_by(Watches.create_at.desc(), Watches.id.desc()).offset((int(page) - 1) * int(offset)).limit(
@@ -1329,6 +1364,21 @@ def pay():
     return {"code": 200, "data": {"order_num": order_num, "msg": "支付成功"}}
 
 
+# 计算价格
+@admin_api.route("/compute/price", methods=["POST"])
+def compute_price():
+    data_json = request.json
+    product_list = data_json.get("product")  # 數組 [[1, 2]]
+    total = 0
+    print(product_list)
+    for item in product_list:
+        wat = Watches.query.filter(Watches.id == item[0]).first()
+        if wat.store < item[1]:
+            return jsonify({"code": 2001, "data": {"msg": wat.name + "庫產不足"}})
+        total += wat.price * item[1]
+    ret = {"code": 200, "data": {"total": total, "deposit": rate/100*total}}
+    return jsonify(ret)
+
 # 普通用戶查看訂單
 @admin_api.route("/client/order", methods=["GET"])
 @check_login
@@ -1344,7 +1394,7 @@ def client_order():
         #     delete_at=None).order_by(Orders.create_at.desc(), Orders.id.desc()).offset(
         #     (int(page) - 1) * int(offset)).limit(int(offset)).all()
         order_list = db.session.query(Orders, OrderDetail).filter(Orders.order_num==OrderDetail.order_id).filter(Orders.user_id == user_id).filter(
-            or_(Orders.order_num.like("%" + search + "%"), Orders.name.like("%" + search + "%"))).filter_by(
+            or_(Orders.order_num.like("%" + search + "%"))).filter_by(
             delete_at=None).order_by(Orders.create_at.desc(), Orders.id.desc()).offset(
             (int(page) - 1) * int(offset)).limit(int(offset)).all()
         order_lists = []
@@ -1352,7 +1402,8 @@ def client_order():
             item_dict = item[0].to_dict()
             item_dict["detail"] = item[1].to_dict()
             order_lists.append(item_dict)
-        count = Orders.query.filter(Orders.user_id==user_id).filter_by(delete_at=None).count()
+        count = Orders.query.filter(Orders.user_id==user_id).filter_by(delete_at=None).filter(
+            or_(Orders.order_num.like("%" + search + "%"))).count()
         ret = {"code": 200, "data": order_lists, "count": count}
     else:
         if data.get("order_num"):
@@ -1396,8 +1447,8 @@ def order():
         page = data.get("page", 1)
         search = data.get("search")
         if search:
-            order_list = db.session.query(Orders, OrderDetail).filter(Orders.order_num == OrderDetail.order_id).filter(or_(Orders.order_num.like("%"+search+"%"), Orders.name.like("%"+search+"%"))).filter_by(delete_at=None).order_by(Orders.create_at.desc(), Orders.id.desc()).offset((int(page)-1)*int(offset)).limit(int(offset)).all()
-            count = Orders.query.filter_by(delete_at=None).count()
+            order_list = db.session.query(Orders, OrderDetail).filter(Orders.order_num == OrderDetail.order_id).filter(or_(Orders.order_num.like("%"+search+"%"))).filter_by(delete_at=None).order_by(Orders.create_at.desc(), Orders.id.desc()).offset((int(page)-1)*int(offset)).limit(int(offset)).all()
+            count = Orders.query.filter(or_(Orders.order_num.like("%"+search+"%"))).filter_by(delete_at=None).count()
             order_lists = []
             for item in order_list:
                 item_dict = item[0].to_dict()
@@ -1460,7 +1511,7 @@ def order():
         order_num = "WAS" + str(int(time.time()))
         uid = uuid.uuid4().hex
         # 建立訂單
-        order_obj = Orders(uuid=uid, order_num=order_num, handsel=rate / 100 * total, total=total, pay_methods="stripe",
+        order_obj = Orders(uuid=uid, order_num=order_num, deposit=rate / 100 * total, total=total, pay_methods="stripe",
                            status=1, user_id=user_id,  create_at=datetime.datetime.now())
         orm_list = []
         orm_list.append(order_obj)

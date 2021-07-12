@@ -28,6 +28,7 @@ class Brand(db.Model):
     detail = Column(TEXT)
     count = Column(Integer)
     image_uuid = Column(String(500))
+    category_uuid = Column(String(50))
     create_at = Column(DATETIME, nullable=True)
     update_at = Column(DATETIME, nullable=True)
     delete_at = Column(DATETIME, nullable=True)
@@ -163,7 +164,7 @@ class Orders(db.Model):
     order_num = Column(String(255))
     # order_detail = Column(JSON)
     total = Column(FLOAT)
-    handsel = Column(FLOAT)
+    deposit = Column(FLOAT)
     pay_methods = Column(String(255))
     status = Column(INTEGER, default=0)  # 0:未支付 1：已支付定金 2：已取消
     user_id = Column(INTEGER)
