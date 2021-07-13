@@ -14,8 +14,6 @@ from itsdangerous import SignatureExpired, BadSignature
 from smtplib import SMTP
 from email.mime.text import MIMEText
 from email.header import Header
-import random
-import string
 
 ENCRY_UTIL = des(b"DESCRYPT", CBC, b"\0\0\0\0\0\0\0\0", pad=None, padmode=PAD_PKCS5)
 
@@ -46,7 +44,7 @@ def check_login(func):
             key_data = bytes(data, encoding="utf-8")
             key_data = base64.decodebytes(key_data)
             user_info_bytes = ENCRY_UTIL.decrypt(key_data)
-            user_info = user_info_bytes.decode('utf-8')
+            user_info = user_info_bytes
             if user_info:
                 return func(*args, **kwargs)
             else:

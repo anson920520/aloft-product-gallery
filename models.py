@@ -117,6 +117,7 @@ class Watches(db.Model):
     clasp_type = Column(String(255))
     price = Column(FLOAT(11))
     store = Column(INTEGER, default=100)
+    detail = Column(TEXT)
     create_at = Column(DATETIME, nullable=True)
     update_at = Column(DATETIME, nullable=True)
     delete_at = Column(DATETIME, nullable=True)

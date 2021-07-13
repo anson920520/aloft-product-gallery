@@ -1065,6 +1065,7 @@ def watch():
             watch_obj.clasp_type = data.get("clasp_type")
             watch_obj.update_at = datetime.datetime.now()
             watch_obj.price = data.get("price")
+            watch_obj.detail = data.get("detail")
             db.session.commit()
             ret = {"code": 200, "data": {}, "msg": "更改成功"}
         else:
@@ -1085,7 +1086,7 @@ def watch():
                                 dial_color=data.get("dial_color"), dial_material=data.get("dial_material"),
                                 strap_color=data.get("strap_color"), strap_material=data.get("strap_material"),
                                 water_resistant=data.get("water_resistant"), annex=data.get("annex"),
-                                clasp_type=data.get("clasp_type"), create_at=datetime.datetime.now(),)
+                                clasp_type=data.get("clasp_type"), create_at=datetime.datetime.now(),detail=data.get("detail"))
             db.session.add(watch_obj)
             db.session.commit()
             ret = {"code": 200, "data": {"uuid": str_uuid}, "msg": "創建成功"}
@@ -1342,7 +1343,7 @@ def pay():
     order_num = "WAS"+str(int(time.time()))
     uid = uuid.uuid4().hex
     # 建立訂單
-    order_obj = Orders(uuid=uid, order_num=order_num, handsel=rate/100*total, total=total, pay_methods=methods, status=1, user_id=user_id, create_at=datetime.datetime.now())
+    order_obj = Orders(uuid=uid, order_num=order_num, deposit=rate/100*total, total=total, pay_methods=methods, status=1, user_id=user_id, create_at=datetime.datetime.now())
     orm_list = []
     orm_list.append(order_obj)
     for item in product_detail_list:
@@ -1373,9 +1374,10 @@ def compute_price():
     print(product_list)
     for item in product_list:
         wat = Watches.query.filter(Watches.id == item[0]).first()
-        if wat.store < item[1]:
-            return jsonify({"code": 2001, "data": {"msg": wat.name + "庫產不足"}})
-        total += wat.price * item[1]
+        if wat:
+            if wat.store < item[1]:
+                return jsonify({"code": 2001, "data": {"msg": wat.name + "庫產不足"}})
+            total += wat.price * item[1]
     ret = {"code": 200, "data": {"total": total, "deposit": rate/100*total}}
     return jsonify(ret)
 
@@ -1562,14 +1564,15 @@ def settings():
             file = eval(f.read())
         return jsonify({"code": 200, "data": file})
     else:
-        global ADMIN_TIMEOUT
-        global CLIENT_TIMEOUT
-        global rate
         # 取消訂單  返還數量
         json_data = request.json
         ADMIN_TIMEOUT = json_data.get("admin_timeout", 3)
         CLIENT_TIMEOUT = json_data.get("client_timeout", 3)
         rate = json_data.get("rate", 10)
+        import setting
+        setattr(setting, "ADMIN_TIMEOUT", ADMIN_TIMEOUT)
+        setattr(setting, "CLIENT_TIMEOUT", CLIENT_TIMEOUT)
+        setattr(setting, "rate", rate)
         content = {"admin_timeout": ADMIN_TIMEOUT, "client_timeout": CLIENT_TIMEOUT, "rate": rate}
         with open("data.json", "w", encoding="utf-8") as f:
             f.write(json.dumps(content, ensure_ascii=False))
