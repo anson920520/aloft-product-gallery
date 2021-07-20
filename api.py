@@ -1295,6 +1295,7 @@ def pay():
     product_list = data_json.get("product")  # 數組 [[1, 2]]
     user_id = data_json.get("user_id")
     address = data_json.get("address_id", 1)
+    booking_time = data_json.get("booking_time")
     total = 0
     desc_list = ""
     data_msg = ""
@@ -1346,8 +1347,10 @@ def pay():
     order_num = "WAS"+str(int(time.time()))
     uid = uuid.uuid4().hex
     # 建立訂單
-    order_obj = Orders(uuid=uid, order_num=order_num, deposit=rate/100*total, total=total, pay_methods=methods, status=1, user_id=user_id, create_at=datetime.datetime.now())
+    order_obj = Orders(uuid=uid, order_num=order_num, booking_time=booking_time, deposit=rate/100*total, total=total, pay_methods=methods, status=1, user_id=user_id, create_at=datetime.datetime.now())
     orm_list = []
+    user_obj = UserInfo.query.filter_by(id=user_id).first()
+    sender_email([user_obj.email], order_num)
     orm_list.append(order_obj)
     for item in product_detail_list:
         print(item)

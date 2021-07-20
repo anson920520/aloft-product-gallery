@@ -18,8 +18,8 @@ app.config['SQLALCHEMY_ECHO'] = False
 db = SQLAlchemy(app)
 
 
-class Brand(db.Model):
-    __tablename__ = "brand"
+class HairStylist(db.Model):
+    __tablename__ = "hairstylist"
     id = Column(INTEGER, primary_key=True, autoincrement=True)
     uuid = Column(String(255), index=True)
     name = Column(String(255))
@@ -171,6 +171,7 @@ class Orders(db.Model):
     status = Column(INTEGER, default=0)  # 0:未支付 1：已支付定金 2：已取消
     user_id = Column(INTEGER)
     address_id = Column(INTEGER)
+    booking_time = Column(String(50))
     create_at = Column(DATETIME, nullable=True)
     update_at = Column(DATETIME, nullable=True)
     delete_at = Column(DATETIME, nullable=True)
