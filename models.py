@@ -171,6 +171,7 @@ class Orders(db.Model):
     status = Column(INTEGER, default=0)  # 0:未支付 1：已支付定金 2：已取消
     user_id = Column(INTEGER)
     address_id = Column(INTEGER)
+    booking_time = Column(String(500))
     create_at = Column(DATETIME, nullable=True)
     update_at = Column(DATETIME, nullable=True)
     delete_at = Column(DATETIME, nullable=True)
