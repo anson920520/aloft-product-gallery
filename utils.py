@@ -2,6 +2,7 @@ import base64
 import datetime
 import hashlib
 import io
+import time
 
 import xlsxwriter
 
@@ -173,4 +174,63 @@ def create_excel(xlsdate, onelist, fields_list, name):
     workbook.close()
     fp.seek(0)
     return (fp, filename)
+
+
+def year_month():
+    a = datetime.datetime.now().year
+    print(a)
+    print(type(a))
+    y_m = []
+    for x in range(1, 13):
+        dt_start = (datetime.datetime(a, x, 1)).strftime("%Y-%m-%d")
+        if 12 == x:
+            dt_end = (datetime.datetime(a, 12, 31)).strftime("%Y-%m-%d")
+        else:
+            dt_end = (datetime.datetime(a, x + 1, 1) - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+        y_m_tuple = list()
+        y_m_tuple.append(dt_start)
+        y_m_tuple.append(dt_end)
+        y_m.append(y_m_tuple)
+
+    return y_m
+
+
+def timeS(data):
+    timeArray = time.strptime(data, "%Y-%m-%d")
+    timeStamp = int(time.mktime(timeArray))
+    return timeStamp
+
+def timeD(data):
+    dateArray = datetime.datetime.fromtimestamp(data)
+    otherStyleTime = dateArray.strftime("%Y-%m-%d %H:%M:%S")
+    return otherStyleTime
+
+
+# 本月第一天到最后一天时间搓
+def timeMonth():
+    now = datetime.datetime.now()
+    # 每月新增会员
+    this_month_start = datetime.datetime(now.year, now.month, 1)
+    this_month_start = this_month_start.strftime('%Y-%m-%d')
+    time_start = timeS(this_month_start)
+    this_month_end = datetime.datetime(now.year, now.month + 1, 1) - datetime.timedelta(
+        days=1) + datetime.timedelta(
+        hours=23, minutes=59, seconds=59)
+    this_month_end = this_month_end.strftime('%Y-%m-%d')
+    time_end = timeS(this_month_end)
+    return time_start, time_end
+
+
+# 上个月的第一天---最后一天时间搓
+def lastMonth():
+    now = datetime.datetime.now()
+    this_month_start = datetime.datetime(now.year, now.month, 1)
+    last_month_end = this_month_start - datetime.timedelta(days=1) + datetime.timedelta(
+        hours=23, minutes=59, seconds=59)
+    last_month_start = datetime.datetime(last_month_end.year, last_month_end.month, 1)
+    last_month_end = last_month_end.strftime('%Y-%m-%d')
+    last_month_start = last_month_start.strftime('%Y-%m-%d')
+    time_end = timeS(last_month_end)
+    time_start = timeS(last_month_start)
+    return time_start, time_end
 

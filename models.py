@@ -121,6 +121,7 @@ class Watches(db.Model):
     create_at = Column(DATETIME, nullable=True)
     update_at = Column(DATETIME, nullable=True)
     delete_at = Column(DATETIME, nullable=True)
+    status = Column(INTEGER, default=0)  # 0 需要付定金 1 不要定金
 
     def to_dict(self):
         column_name_list = [

@@ -5,8 +5,8 @@ import time
 import requests
 from flask import Blueprint, request, jsonify, make_response, Response
 from utils import generate_auth_token, check_login, hash_password, loads, create_excel, sender_email, \
-    generate_admin_auth_token, check_admin
-from setting import rate, IMG_SIZE, ADMIN_TIMEOUT, CLIENT_TIMEOUT,  IMG_PATH, PDF_PATH, FILE, merchantID, publicKey, privateKey, API_KEY, PUB_KEY
+    generate_admin_auth_token, check_admin, timeMonth, timeD
+from setting import rate as rates, IMG_SIZE, ADMIN_TIMEOUT, CLIENT_TIMEOUT,  IMG_PATH, PDF_PATH, FILE, merchantID, publicKey, privateKey, API_KEY, PUB_KEY
 import uuid
 import datetime
 from models import db, Brand, Images, Category, Watches, UserInfo, Orders, OrderDetail, Address, Favorite, ShoppingCar, \
@@ -15,6 +15,7 @@ from sqlalchemy import text, extract, or_, func
 from pay.pay import third_pay, client_token
 from pay.stripe_pay import create_purchase
 
+rate = rates
 
 admin_api = Blueprint('admin', __name__)
 
@@ -652,7 +653,7 @@ def brand():
                 brand_list = []
                 if brand_obj:
                     item_dict = brand_obj.to_dict()
-                    item_dict["images"] = item_dict["images"] = loads(Images.query.filter_by(uuid=brand_obj.image_uuid).first())
+                    item_dict["images"] = loads(Images.query.filter_by(uuid=brand_obj.image_uuid).first())
                     brand_list.append(item_dict)
                 ret = {"code": 200, "data": {"brand_list": brand_list}, "msg": "success"}
             else:
@@ -661,7 +662,7 @@ def brand():
                 brand_list = []
                 for item in brand_obj:
                     item_dict = item.to_dict()
-                    item_dict["images"] = item_dict["images"] = loads(Images.query.filter_by(uuid=item.image_uuid).first())
+                    item_dict["images"] = loads(Images.query.filter_by(uuid=item.image_uuid).first())
                     brand_list.append(item_dict)
                 ret = {"code": 200, "data": {"brand_list": brand_list, "count": brand_count}, "msg": "success"}
         return jsonify(ret)
@@ -1301,6 +1302,8 @@ def pay():
     print(product_list)
     for item in product_list:
         wat = Watches.query.filter(Watches.id==item[0]).first()
+        if wat.status == 1:
+            return jsonify({"code": 2002, "data": {"msg": wat.name+" 該產品不需要付定金"}})
         images = Images.query.filter_by(watches_uuid=wat.uuid).all()
         if wat.store < item[1]:
             return jsonify({"code": 2001, "data": {"msg": wat.name+"庫產不足"}})
@@ -1568,11 +1571,12 @@ def settings():
         json_data = request.json
         ADMIN_TIMEOUT = json_data.get("admin_timeout", 3)
         CLIENT_TIMEOUT = json_data.get("client_timeout", 3)
-        rate = json_data.get("rate", 10)
+        rates = json_data.get("rate", 10)
+        global rate
         import setting
         setattr(setting, "ADMIN_TIMEOUT", ADMIN_TIMEOUT)
         setattr(setting, "CLIENT_TIMEOUT", CLIENT_TIMEOUT)
-        setattr(setting, "rate", rate)
+        rate = rates
         content = {"admin_timeout": ADMIN_TIMEOUT, "client_timeout": CLIENT_TIMEOUT, "rate": rate}
         with open("data.json", "w", encoding="utf-8") as f:
             f.write(json.dumps(content, ensure_ascii=False))
@@ -1606,4 +1610,52 @@ def client_settings():
         return jsonify({"code": 200, "data": file})
 
 
-# TODO :匯率、和分類品牌
+@admin_api.route('/statistic/calculate')
+@check_admin
+def count():
+
+    try:
+        order_count = Orders.query.count()
+        # 本月月初和月末
+        time_start, time_end = timeMonth()
+        time_date_start = timeD(time_start)
+        time_date_end = timeD(time_end)
+        # 本月礼品兑换数量
+        month_order_count = Orders.query.filter(Orders.create_at >= time_date_start).filter(Orders.create_at <= time_date_end).filter_by(delete_at=None).count()
+
+        product_count = Watches.query.filter_by(delete_at=None).count()
+
+        category_count = Category.query.filter_by(delete_at=None).count()
+        brand_count = Brand.query.filter_by(delete_at=None).count()
+
+        month_sale_product = db.session.query(OrderDetail.product_id, func.count(OrderDetail.product_number)).filter(Orders.order_num==OrderDetail.order_id).filter(
+            Orders.create_at >= time_date_start). \
+            filter(Orders.create_at <= time_date_end).group_by(OrderDetail.product_id).order_by(
+            func.count(OrderDetail.product_number).desc()).limit(10).all()
+
+        month_product_list = []
+        for one in month_sale_product:
+            product_id = one[0]
+            qty = one[1]
+            product = Watches.query.filter_by(id=product_id).filter_by(delete_at=None).first()
+            if product:
+                product_dict = product.to_dict()
+                image_list = Images.query.filter_by(watches_uuid=product_dict["uuid"]).all()
+                product_dict["image"] = loads(image_list)
+                product_dict["qty"] = qty
+                month_product_list.append(product_dict)
+            else:
+                continue
+    except Exception as e:
+        print(e)
+
+    result = {"statistic": {
+        "monthlyOrderTotal": month_order_count,
+        "orderTotal": order_count,
+        "monthlyRankProduct": month_product_list,
+        "productTotal": product_count,
+        "categoryTotal": category_count,
+        "brandTotal": brand_count
+    }}
+
+    return jsonify(result)
