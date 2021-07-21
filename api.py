@@ -62,8 +62,9 @@ def admin_login():
         return jsonify({"code": 2004, "data": {"msg": "用戶不存在"}})
     if is_user.password != hash_password(password):
         return jsonify({"code": 2005, "data": {"msg": "密碼錯誤"}})
-    user_msg = username + "&" + is_user.password + "&" + is_user.role
-    token = generate_admin_auth_token(user_msg)
+    user_msgs = username + "&" + is_user.password + "&" + str(is_user.role)
+    user_msg = {"username": username,  "password": is_user.password, "role": is_user.role}
+    token = generate_admin_auth_token(user_msgs)
     user_msg["token"] = token
     user_msg["role_name"] = is_user.admin_role.role
     return jsonify({"code": 200, "data": user_msg})

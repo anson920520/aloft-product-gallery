@@ -74,7 +74,6 @@ def ws(username):
     # 防止一些低级的恶意用户
     username = decode_url(username)
     user_socket = request.environ.get("wsgi.websocket")
-    print(username, '---')
     if not username:
         user_socket.close()
         return
