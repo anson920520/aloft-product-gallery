@@ -33,7 +33,7 @@ DEBUG = client[2][1]
 IMG_SIZE = eval(client[3][1])
 # BASE_URL = "http://192.168.1.115:5006/static/"   # os.getenv("ADMIN_IP")
 # docker
-BASE_URL = client[4][1]
+BASE_URL = "http://139.9.194.151:7073/static/IMG/"
 IMG_PATH = client[5][1]
 PDF_PATH = client[6][1]
 FILE = client[7][1]
