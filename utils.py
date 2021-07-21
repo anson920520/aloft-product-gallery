@@ -71,17 +71,19 @@ def check_admin(func):
             key_data = bytes(data, encoding="utf-8")
             key_data = base64.decodebytes(key_data)
             user_info_bytes = ENCRY_UTIL.decrypt(key_data)
-            user_info = user_info_bytes.decode('utf-8')
-            user_dict = eval(user_info)
-            if user_dict["role"] == 1:
+            user_info = str(user_info_bytes, encoding="utf-8")
+            print(user_info, "========")
+            role = user_info.split("&")[-1]
+            print(role, "========")
+            if role == 1:
                 return func(*args, **kwargs)
-            elif user_dict["role"] == 2:
+            elif role == 2:
                 # 權限2 不能刪除
                 if request.method == "DELETE":
                     return jsonify({"code": 4004, "data": {"msg": "你沒有權限"}})
                 else:
                     return func(*args, **kwargs)
-            elif user_dict["role"] == 3:
+            elif role == 3:
                 if request.method != "GET":
                     # 權限3 只能看
                     return jsonify({"code": 4004, "data": {"msg": "你沒有權限"}})
@@ -123,6 +125,57 @@ def hash_password(pwd):
     hash_pwd = hashs.hexdigest()
     return hash_pwd
 
+TEMPLATE = """
+<div>
+            <div style="padding:5% 10% 0 10%;">
+			<div style="text-align:center;border:solid 2px black;">
+			<div>
+				<h1>WATCH SYSTEM</h1>
+			</div>
+            <img style="width:400px;" src="http://45.77.45.31:63426/img/bigLogo.9a1c8860.png" >
+            <div style="padding:0 20% 0 20%">
+                <br/>
+                <div style="border:solid 8px black;"></div>
+            </div>
+                
+				<section>
+					<table style="margin-left: auto;margin-right: auto;">
+                        <tr>
+                            <td style="padding:8px;">訂單編號:{}</td>
+                            <td style="padding:8px;">訂單狀態:待發貨</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:8px;">預計取貨日期:{}</td>
+                        <tr/>
+					</table>
+					<br>
+			        <table style="margin-left: auto;margin-right: auto;">
+                        <tr>
+                            <td style="padding:8px;"><img style="width:150px;" src="{}" /></td>
+                            <td style="padding:8px;">{}</td>
+                            <td style="padding:8px;">已付訂金: {}$</td>
+                        </tr>
+					</table>
+     
+					<div style="padding:0 20% 0 20%">
+                        <hr/>
+                        <div style="text-align:right">
+                            總計: ${}
+                        </div>
+                    </div>
+                <div class="bottomText">
+					預約完成後請盡快與我們的服務人員聯絡，並且在取貨當天預備好尾款。
+				</div>
+                    
+					<br>
+					<h3 class="ju">THANKYOU</h2>
+					<br>
+				</section>
+			</div>
+		</div>
+    </div>
+	</body>
+</html>"""
 
 def sender_email(receiver: list, message: str) -> bool:
     mail_server = 'smtp.qq.com'
@@ -135,10 +188,10 @@ def sender_email(receiver: list, message: str) -> bool:
     #     check_email_code += str(item)
 
     msg = MIMEText(message, 'html', 'utf-8')  # 正文 ， MIME的subtype纯文本， 编码
-    msg['From'] = "鴻華餐飲供應有限公司"
+    msg['From'] = "手表系统"
     # msg['From'] = sender
     # msg['To'] = receiver
-    msg['Subject'] = Header('鴻華餐飲供應有限公司', 'utf-8')
+    msg['Subject'] = Header('手表系统', 'utf-8')
     server = SMTP(mail_server, port)
     try:
         # server.set_debuglevel(1)  # 打印出SMTP服务器的交互信息

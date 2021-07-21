@@ -4,9 +4,12 @@ import time
 
 import requests
 from flask import Blueprint, request, jsonify, make_response, Response
+from utils import TEMPLATE
+
 from utils import generate_auth_token, check_login, hash_password, loads, create_excel, sender_email, \
     generate_admin_auth_token, check_admin, timeMonth, timeD
-from setting import rate as rates, IMG_SIZE, ADMIN_TIMEOUT, CLIENT_TIMEOUT,  IMG_PATH, PDF_PATH, FILE, merchantID, publicKey, privateKey, API_KEY, PUB_KEY
+from setting import rate as rates, IMG_SIZE, ADMIN_TIMEOUT, CLIENT_TIMEOUT, IMG_PATH, PDF_PATH, FILE, merchantID, \
+    publicKey, privateKey, API_KEY, PUB_KEY, BASE_URL
 import uuid
 import datetime
 from models import db, Brand, Images, Category, Watches, UserInfo, Orders, OrderDetail, Address, Favorite, ShoppingCar, \
@@ -59,8 +62,8 @@ def admin_login():
         return jsonify({"code": 2004, "data": {"msg": "用戶不存在"}})
     if is_user.password != hash_password(password):
         return jsonify({"code": 2005, "data": {"msg": "密碼錯誤"}})
-    user_msg = {"name": username, "password": is_user.password, "role": is_user.role}
-    token = generate_admin_auth_token(json.dumps(user_msg, ensure_ascii=False))
+    user_msg = username + "&" + is_user.password + "&" + is_user.role
+    token = generate_admin_auth_token(user_msg)
     user_msg["token"] = token
     user_msg["role_name"] = is_user.admin_role.role
     return jsonify({"code": 200, "data": user_msg})
@@ -1067,6 +1070,7 @@ def watch():
             watch_obj.update_at = datetime.datetime.now()
             watch_obj.price = data.get("price")
             watch_obj.detail = data.get("detail")
+            watch_obj.status = data.get("status")
             db.session.commit()
             ret = {"code": 200, "data": {}, "msg": "更改成功"}
         else:
@@ -1086,7 +1090,7 @@ def watch():
                                 case_material=data.get("case_material"), case_material_resistance=data.get("case_material_resistance"),
                                 dial_color=data.get("dial_color"), dial_material=data.get("dial_material"),
                                 strap_color=data.get("strap_color"), strap_material=data.get("strap_material"),
-                                water_resistant=data.get("water_resistant"), annex=data.get("annex"),
+                                water_resistant=data.get("water_resistant"), annex=data.get("annex"), status=data.get("status"),
                                 clasp_type=data.get("clasp_type"), create_at=datetime.datetime.now(),detail=data.get("detail"))
             db.session.add(watch_obj)
             db.session.commit()
@@ -1359,6 +1363,9 @@ def pay():
         # 增加詳情
         obj = OrderDetail(order_id=order_num, product_name=item["product_name"], product_image=json.dumps(item["product_image"]), product_price=item["product_price"], product_number=item["product_number"], total=item["total"], product_id=item["product_id"])
         orm_list.append(obj)
+        user_obj = UserInfo.query.filter_by(id=user_id).first()
+        template = TEMPLATE.format(order_num, booking_time, BASE_URL+item["product_image"][0]["image_name"], item["product_name"], rate/100*total, total)
+        sender_email([user_obj.email], template)
         # 刪除購物車
         # car_obj = ShoppingCar.query.filter_by(user_id=user_id, product_id=item["product_id"]).first()
         # if car_obj:
