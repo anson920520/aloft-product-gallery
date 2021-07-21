@@ -18,4 +18,4 @@ def after_request(response):
 app.register_blueprint(admin_api, url_prefix='/admin')
 
 if __name__ == '__main__':
-    app.run(host=HOST, port=PORT, debug=True, gevent=10)
+    app.run(host=HOST, port=PORT)

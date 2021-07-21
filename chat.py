@@ -3,15 +3,16 @@ import random
 import urllib
 import uuid
 
+from flask import Flask, request, render_template
 from geventwebsocket.websocket import WebSocket, WebSocketError
+from geventwebsocket.handler import WebSocketHandler
+from gevent.pywsgi import WSGIServer
 import json
 import time
 import jwt
-from models import app
-from flask_uwsgi_websocket import GeventWebSocket
 
 
-ws = GeventWebSocket(app)
+app = Flask(__name__)
 
 # 存在线人数
 user_socket_dict = {}
@@ -66,13 +67,13 @@ def decode_url(data):
         return False
 
 
-@ws.route('/ws/<username>')
-def wsChat(ws, username):
+@app.route('/ws/<username>')
+def ws(username):
     # 前端用window.btoa(encodeURI("哈哈哈哈"))编码
     # 对名字编码
     # 防止一些低级的恶意用户
     username = decode_url(username)
-    user_socket = ws
+    user_socket = request.environ.get("wsgi.websocket")
     if not username:
         user_socket.close()
         return
@@ -186,3 +187,8 @@ def wsClose(username):
             print("关闭出现异常")
 
     return {"code": 200, "data": "success"}
+
+
+if __name__ == '__main__':
+    http_serve = WSGIServer(("0.0.0.0", 7666), app, handler_class=WebSocketHandler)
+    http_serve.serve_forever()

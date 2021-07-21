@@ -75,15 +75,15 @@ def check_admin(func):
             print(user_info, "========")
             role = user_info.split("&")[-1]
             print(role, "========")
-            if role == 1:
+            if role == "1":
                 return func(*args, **kwargs)
-            elif role == 2:
+            elif role == "2":
                 # 權限2 不能刪除
                 if request.method == "DELETE":
                     return jsonify({"code": 4004, "data": {"msg": "你沒有權限"}})
                 else:
                     return func(*args, **kwargs)
-            elif role == 3:
+            elif role == "3":
                 if request.method != "GET":
                     # 權限3 只能看
                     return jsonify({"code": 4004, "data": {"msg": "你沒有權限"}})
