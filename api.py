@@ -1302,7 +1302,8 @@ def pay():
     address = data_json.get("address_id", 1)
     booking_time = data_json.get("booking_time")
     total = 0
-    desc_list = ""
+    order_num = "WAS" + str(int(time.time()))
+    desc_list = "[Hair]"+order_num+" "
     data_msg = ""
     product_detail_list = []
     print(product_list)
@@ -1349,7 +1350,7 @@ def pay():
         if is_pay != True:
             result = {"code": 601, "msg": "支付超時"}
             return jsonify(result)
-    order_num = "WAS"+str(int(time.time()))
+    # order_num = "WAS"+str(int(time.time()))
     uid = uuid.uuid4().hex
     # 建立訂單
     order_obj = Orders(uuid=uid, order_num=order_num, booking_time=booking_time, deposit=rate/100*total, total=total, pay_methods=methods, status=1, user_id=user_id, create_at=datetime.datetime.now())
