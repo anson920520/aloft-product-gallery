@@ -112,14 +112,17 @@ def admin_user():
         if not all([username, password, role]):
             ret = {"code": 1002, "data": {"msg": "缺少必傳參數"}}
             return jsonify(ret)
-        if role == 1:
-            ret = {"code": 1003, "data": {"msg": "一個系統中只能有一個超級管理員"}}
-            return jsonify(ret)
         is_obj = Admin.query.filter(Admin.id!=uid).filter_by(username=username, delete_at=None).first()
         if is_obj:
             ret = {"code": 1004, "data": {"msg": "此用户已存在"}}
             return jsonify(ret)
         user_obj = Admin.query.filter_by(id=uid).first()
+        if user_obj.role == 1 and role != 1:
+            ret = {"code": 1003, "data": {"msg": "一個系統中必須有一個超級管理員"}}
+            return jsonify(ret)
+        if user_obj.role != 1 and role == 1:
+            ret = {"code": 1003, "data": {"msg": "一個系統中只能有一個超級管理員"}}
+            return jsonify(ret)
         user_obj.password = hash_password(password)
         user_obj.username = username
         user_obj.role = role
